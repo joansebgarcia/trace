@@ -36,6 +36,14 @@ _Avoid_: Ticket (reserved for the planning tracker), group, incident, problem
 The value computed from an Event that decides which Issue it belongs to.
 _Avoid_: Fingerprint, hash, signature
 
+**Custom Group Key**:
+A Group Key supplied by the SDK for an Event, replacing the one REC would compute.
+_Avoid_: Custom fingerprint, override hash
+
+**In-app frame**:
+A stack frame from the host application's own code, as opposed to its dependencies or the runtime.
+_Avoid_: User frame, app frame
+
 ### Tenancy
 
 **Project**:
