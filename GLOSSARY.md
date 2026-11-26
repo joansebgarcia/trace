@@ -18,6 +18,14 @@ _Avoid_: Trail, log line
 A client library embedded in a host application that captures Events and sends them to a REC server.
 _Avoid_: Client, agent, tracker
 
+**Release**:
+The version of the host application in which an Event occurred.
+_Avoid_: Build, deploy, version (alone)
+
+**Environment**:
+The deployment stage of the host application where an Event occurred, such as production or staging.
+_Avoid_: Stage, env, tier
+
 ### Grouping
 
 **Issue**:

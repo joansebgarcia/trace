@@ -24,3 +24,9 @@ Every file must follow this general order, omitting any steps that don't apply t
 Keep the entry points high, and push the internal details down. Whenever the compiler or interpreter allows it, place helper functions at the very bottom of the file.
 
 If the language strictly requires defining a function before it is called, group all internal helpers together neatly just above the main logic. Never interleave them. Do not write a public function, followed by its private helper, followed by another public function. Group the public interface together, and group the private implementation together.
+
+## Agents
+
+### How to approach decisions and uncertainties
+
+For each option (grilling, design or implementation), provide a brief summary: what it does, what it affects, and why it is a good choice. Avoid unexplained jargon and repetition.
