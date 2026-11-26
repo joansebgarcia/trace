@@ -61,3 +61,11 @@ _Avoid_: App, organization, tenant
 **Ingest Key**:
 The credential a Project's SDKs present to send Events to a REC server.
 _Avoid_: API key, token
+
+**Admin**:
+A person with credentials to sign in to a REC instance's UI; every Admin has the same permissions over every Project.
+_Avoid_: User (reserved for the host application's end users), account, operator
+
+**Operator**:
+The person who deploys and runs a REC instance and uses its command-line tools; a role, not an account.
+_Avoid_: Admin, sysadmin, owner
