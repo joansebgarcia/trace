@@ -8,12 +8,16 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/joansebgarcia/amber/store"
 )
 
 const readHeaderTimeout = 10 * time.Second
 
 type Config struct {
-	Addr            string
+	Addr string
+	// DataDir is the data directory. It is created if it does not exist.
+	DataDir         string
 	ShutdownTimeout time.Duration
 	// Logger receives the server logs. Nil discards them.
 	Logger *slog.Logger
@@ -22,6 +26,7 @@ type Config struct {
 type Server struct {
 	config   Config
 	logger   *slog.Logger
+	store    *store.Store
 	server   *http.Server
 	listener net.Listener
 	serveErr chan error
@@ -34,23 +39,31 @@ func NewServer(config Config) *Server {
 	}
 
 	return &Server{
-		config: config,
-		logger: logger,
-		server: &http.Server{
-			Handler:           NewRouter(logger),
-			ReadHeaderTimeout: readHeaderTimeout,
-		},
+		config:   config,
+		logger:   logger,
 		serveErr: make(chan error, 1),
 	}
 }
 
-// Start binds the listener and serves in the background.
+// Start opens the data directory, binds the listener and serves in the
+// background.
 func (s *Server) Start() error {
+	st, err := store.Open(s.config.DataDir)
+	if err != nil {
+		return err
+	}
+	s.logger.Info("data directory open", "dir", s.config.DataDir)
+
 	listener, err := net.Listen("tcp", s.config.Addr)
 	if err != nil {
-		return fmt.Errorf("listen on %s: %w", s.config.Addr, err)
+		return errors.Join(fmt.Errorf("listen on %s: %w", s.config.Addr, err), st.Close())
 	}
+	s.store = st
 	s.listener = listener
+	s.server = &http.Server{
+		Handler:           NewRouter(s.logger, st),
+		ReadHeaderTimeout: readHeaderTimeout,
+	}
 	s.logger.Info("http server listening", "addr", s.Addr())
 
 	go func() {
@@ -68,10 +81,16 @@ func (s *Server) Addr() string {
 	return s.listener.Addr().String()
 }
 
-// Shutdown waits for in-flight requests until ctx ends.
+// Store returns the open data directory. It is nil before Start.
+func (s *Server) Store() *store.Store {
+	return s.store
+}
+
+// Shutdown waits for in-flight requests until ctx ends, then closes the data
+// directory.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.logger.Info("shutting down")
-	return s.server.Shutdown(ctx)
+	return errors.Join(s.server.Shutdown(ctx), s.store.Close())
 }
 
 // Run starts the server and blocks until ctx ends or serving fails, then
@@ -85,8 +104,10 @@ func (s *Server) Run(ctx context.Context) error {
 	case <-ctx.Done():
 	case err, failed := <-s.serveErr:
 		if failed {
-			return fmt.Errorf("serve http: %w", err)
+			return errors.Join(fmt.Errorf("serve http: %w", err), s.store.Close())
 		}
+		// Serving ends cleanly only after Shutdown, which already closed the
+		// store.
 		return nil
 	}
 

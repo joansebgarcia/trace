@@ -41,9 +41,11 @@ func serveHealthy(t *testing.T, args ...string) (stop func() string) {
 }
 
 // serve runs the command with args until the test ends and returns a function
-// that stops it and returns its output.
+// that stops it and returns its output. It runs inside a temporary working
+// directory, so the default data directory is temporary too.
 func serve(t *testing.T, args ...string) (stop func() string) {
 	t.Helper()
+	t.Chdir(t.TempDir())
 
 	var out bytes.Buffer
 	root := cmd.NewRoot("test")
