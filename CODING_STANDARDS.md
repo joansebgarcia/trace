@@ -21,9 +21,21 @@ Every file must follow this general order, omitting any steps that don't apply t
 
 ### Public first, private last
 
+This rule orders steps 5 and 6 only: the main logic and its helpers. Steps 1–4 keep their place whatever their visibility, so a private type or constant stays in its step, and a type's methods stay next to the type.
+
 Keep the entry points high, and push the internal details down. Whenever the compiler or interpreter allows it, place helper functions at the very bottom of the file.
 
 If the language strictly requires defining a function before it is called, group all internal helpers together neatly just above the main logic. Never interleave them. Do not write a public function, followed by its private helper, followed by another public function. Group the public interface together, and group the private implementation together.
+
+## Naming
+
+Names follow the conventions of the language being used. They should be written in simplified technical English: straightforward, direct, and standard.
+
+- **Functions and methods:** A verb in the imperative mood, optionally accompanied by a simple noun.
+- **Types, variables, and packages:** A simple noun.
+- **Domain concepts:** Use the term specified in [`GLOSSARY.md`](./GLOSSARY.md); never use a synonym listed in the "Avoid" section of that document.
+- **No phrases:** Avoid long compound names, filler words (`Manager`, `Helper`, `Util`, `Data`), and names that describe the implementation rather than the purpose.
+- **No product names in identifiers:** Product names may change. Do not use them—except in cases where including one is necessary.
 
 ## Agents
 

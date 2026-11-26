@@ -1,6 +1,6 @@
 # Research: SDK JS fail-safe — transportes, handlers y tamaño
 
-Ticket: joansebgarcia/rec#6 (hijo del mapa #1). Fecha: 2026-11-24.
+Ticket: joansebgarcia/amber#6 (hijo del mapa #1). Fecha: 2026-11-24.
 
 ## Pregunta
 
