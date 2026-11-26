@@ -18,6 +18,30 @@ func TestHealth(t *testing.T) {
 			ExpectedBody:    `{"status":"ok"}`,
 		},
 		{
+			Name:   "unreachable data.db returns unavailable",
+			Method: http.MethodGet,
+			Path:   "/api/health",
+			NewApp: func(t testing.TB) *tests.App {
+				app := tests.NewApp(t)
+				_ = app.Store().Data.Write.Close()
+				return app
+			},
+			ExpectedStatus: http.StatusServiceUnavailable,
+			ExpectedBody:   `{"status":"unavailable"}`,
+		},
+		{
+			Name:   "unreachable ingest.db returns unavailable",
+			Method: http.MethodGet,
+			Path:   "/api/health",
+			NewApp: func(t testing.TB) *tests.App {
+				app := tests.NewApp(t)
+				_ = app.Store().Ingest.Read.Close()
+				return app
+			},
+			ExpectedStatus: http.StatusServiceUnavailable,
+			ExpectedBody:   `{"status":"unavailable"}`,
+		},
+		{
 			Name:           "other methods are not allowed",
 			Method:         http.MethodPost,
 			Path:           "/api/health",

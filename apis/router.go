@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+
+	"github.com/joansebgarcia/amber/store"
 )
 
 type statusRecorder struct {
@@ -16,15 +18,22 @@ func (s *statusRecorder) WriteHeader(status int) {
 	s.ResponseWriter.WriteHeader(status)
 }
 
-func NewRouter(logger *slog.Logger) http.Handler {
+func NewRouter(logger *slog.Logger, st *store.Store) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", serveHealth)
+	mux.HandleFunc("GET /api/health", serveHealth(logger, st))
 
 	return logRequests(logger, mux)
 }
 
-func serveHealth(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+func serveHealth(logger *slog.Logger, st *store.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := st.Ping(r.Context()); err != nil {
+			logger.Warn("health check failed", "err", err)
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

@@ -19,6 +19,7 @@ import (
 
 const (
 	defaultAddr            = "127.0.0.1:8090"
+	defaultDir             = "./amber_data"
 	defaultLogFormat       = "text"
 	defaultLogLevel        = "info"
 	defaultShutdownTimeout = 10 * time.Second
@@ -56,6 +57,7 @@ func newServe() *cobra.Command {
 			logger.Info("starting",
 				"version", cmd.Root().Version,
 				"http", config.Addr,
+				"dir", config.DataDir,
 				"log_format", logFormat,
 				"log_level", logLevel,
 				"shutdown_timeout", config.ShutdownTimeout.String(),
@@ -70,6 +72,7 @@ func newServe() *cobra.Command {
 
 	flags := serve.Flags()
 	flags.StringVar(&config.Addr, "http", defaultAddr, "TCP address to listen on for HTTP")
+	flags.StringVar(&config.DataDir, "dir", defaultDir, "data directory, created if it does not exist")
 	flags.StringVar(&logFormat, "log-format", defaultLogFormat, "log format: "+listLogFormats())
 	flags.StringVar(&logLevel, "log-level", defaultLogLevel, "minimum log level: "+listLogLevels())
 	flags.DurationVar(&config.ShutdownTimeout, "shutdown-timeout", defaultShutdownTimeout, "maximum time to wait for a graceful shutdown")

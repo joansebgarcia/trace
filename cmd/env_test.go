@@ -2,6 +2,8 @@ package cmd_test
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -25,6 +27,32 @@ func TestServeHTTPPrecedence(t *testing.T) {
 		serve(t, "serve", "--http="+flagAddr)
 
 		waitHealthy(t, flagAddr)
+	})
+}
+
+func TestServeDirPrecedence(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		serveHealthy(t)
+
+		assertLocked(t, "amber_data")
+	})
+
+	t.Run("env over default", func(t *testing.T) {
+		envDir := filepath.Join(t.TempDir(), "env")
+		t.Setenv(cmd.EnvPrefix+"DIR", envDir)
+
+		serveHealthy(t)
+
+		assertLocked(t, envDir)
+	})
+
+	t.Run("flag over env", func(t *testing.T) {
+		envDir, flagDir := filepath.Join(t.TempDir(), "env"), filepath.Join(t.TempDir(), "flag")
+		t.Setenv(cmd.EnvPrefix+"DIR", envDir)
+
+		serveHealthy(t, "--dir="+flagDir)
+
+		assertLocked(t, flagDir)
 	})
 }
 
@@ -105,9 +133,18 @@ func TestServeHelpNamesEnv(t *testing.T) {
 		t.Fatalf("execute: %v", err)
 	}
 
-	for _, name := range []string{"HTTP", "LOG_FORMAT", "LOG_LEVEL", "SHUTDOWN_TIMEOUT"} {
+	for _, name := range []string{"DIR", "HTTP", "LOG_FORMAT", "LOG_LEVEL", "SHUTDOWN_TIMEOUT"} {
 		if env := cmd.EnvPrefix + name; !strings.Contains(out, env) {
 			t.Errorf("help does not name %s:\n%s", env, out)
 		}
+	}
+}
+
+// assertLocked fails the test unless serve took dir as its data directory.
+func assertLocked(t *testing.T, dir string) {
+	t.Helper()
+
+	if _, err := os.Stat(filepath.Join(dir, ".lock")); err != nil {
+		t.Errorf("serve did not take %s as data directory: %v", dir, err)
 	}
 }

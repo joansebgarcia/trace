@@ -35,3 +35,6 @@ go.work.sum
 
 # Build output
 /bin/
+
+# Default data directory of amber serve
+/amber_data/
