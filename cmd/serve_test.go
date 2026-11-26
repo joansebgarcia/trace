@@ -3,6 +3,8 @@ package cmd_test
 import (
 	"strings"
 	"testing"
+
+	"github.com/joansebgarcia/amber/store"
 )
 
 func TestServeAnswersHealth(t *testing.T) {
@@ -28,5 +30,25 @@ func TestServeDirDefault(t *testing.T) {
 
 	if !strings.Contains(out, `"./amber_data"`) {
 		t.Errorf("help does not show the default --dir ./amber_data:\n%s", out)
+	}
+}
+
+func TestServeRejectsNewerSchema(t *testing.T) {
+	dir := t.TempDir()
+	s, err := store.Open(dir)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	if _, err := s.Data.Write.Exec("PRAGMA user_version = 999"); err != nil {
+		t.Fatalf("set version: %v", err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("close store: %v", err)
+	}
+
+	_, err = execute("serve", "--http="+findFreeAddr(t), "--dir="+dir)
+
+	if err == nil || !strings.Contains(err.Error(), "data.db schema version 999 is newer than this binary supports") {
+		t.Fatalf("error = %v, want one saying data.db is newer than the binary", err)
 	}
 }

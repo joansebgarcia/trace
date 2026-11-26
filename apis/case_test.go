@@ -1,4 +1,4 @@
-package tests
+package apis_test
 
 import (
 	"io"
