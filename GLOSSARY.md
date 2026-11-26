@@ -26,6 +26,10 @@ _Avoid_: Build, deploy, version (alone)
 The deployment stage of the host application where an Event occurred, such as production or staging.
 _Avoid_: Stage, env, tier
 
+**Redaction**:
+The replacement of sensitive values in an Event with a fixed marker before it is stored.
+_Avoid_: Scrubbing, sanitization, filtering
+
 ### Grouping
 
 **Issue**:
