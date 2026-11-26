@@ -1,7 +1,4 @@
-// Package tests provides the test seam shared by every server block: the app
-// running inside the test process over a temporary data directory, driven by
-// HTTP.
-package tests
+package apis_test
 
 import (
 	"context"
@@ -10,6 +7,7 @@ import (
 	"time"
 
 	"github.com/joansebgarcia/amber/apis"
+	"github.com/joansebgarcia/amber/store"
 )
 
 const timeout = 5 * time.Second
@@ -23,6 +21,9 @@ type App struct {
 	URL    string
 	Client *http.Client
 }
+
+// Option changes the config of an app before it starts.
+type Option func(*apis.Config)
 
 // NewApp starts an app on a free local port over a temporary data directory.
 func NewApp(t testing.TB) *App {
@@ -38,14 +39,18 @@ func NewApp(t testing.TB) *App {
 
 // StartApp starts an app on a free local port over dir, which may not exist
 // yet. It returns the error of a failed start instead of failing the test.
-func StartApp(t testing.TB, dir string) (*App, error) {
+func StartApp(t testing.TB, dir string, options ...Option) (*App, error) {
 	t.Helper()
 
-	server := apis.NewServer(apis.Config{
+	config := apis.Config{
 		Addr:            "127.0.0.1:0",
 		DataDir:         dir,
 		ShutdownTimeout: timeout,
-	})
+	}
+	for _, option := range options {
+		option(&config)
+	}
+	server := apis.NewServer(config)
 	if err := server.Start(); err != nil {
 		return nil, err
 	}
@@ -64,4 +69,10 @@ func StartApp(t testing.TB, dir string) (*App, error) {
 		URL:     "http://" + server.Addr(),
 		Client:  &http.Client{Timeout: timeout},
 	}, nil
+}
+
+// WithMigrations makes the app apply migrations instead of the ones built
+// into the binary.
+func WithMigrations(migrations *store.Migrations) Option {
+	return func(c *apis.Config) { c.Migrations = migrations }
 }

@@ -1,0 +1,2 @@
+-- Version 1 is the empty schema. Each module adds its tables in a later
+-- migration of this file.

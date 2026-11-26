@@ -3,12 +3,10 @@ package apis_test
 import (
 	"net/http"
 	"testing"
-
-	"github.com/joansebgarcia/amber/tests"
 )
 
 func TestHealth(t *testing.T) {
-	cases := []tests.Case{
+	cases := []Case{
 		{
 			Name:            "healthy instance returns ok",
 			Method:          http.MethodGet,
@@ -21,8 +19,8 @@ func TestHealth(t *testing.T) {
 			Name:   "unreachable data.db returns unavailable",
 			Method: http.MethodGet,
 			Path:   "/api/health",
-			NewApp: func(t testing.TB) *tests.App {
-				app := tests.NewApp(t)
+			NewApp: func(t testing.TB) *App {
+				app := NewApp(t)
 				_ = app.Store().Data.Write.Close()
 				return app
 			},
@@ -33,8 +31,8 @@ func TestHealth(t *testing.T) {
 			Name:   "unreachable ingest.db returns unavailable",
 			Method: http.MethodGet,
 			Path:   "/api/health",
-			NewApp: func(t testing.TB) *tests.App {
-				app := tests.NewApp(t)
+			NewApp: func(t testing.TB) *App {
+				app := NewApp(t)
 				_ = app.Store().Ingest.Read.Close()
 				return app
 			},

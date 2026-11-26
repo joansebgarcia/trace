@@ -16,6 +16,7 @@ const (
 	ingestFile = "ingest.db"
 	dataFile   = "data.db"
 	lockFile   = ".lock"
+	backupDir  = "backups"
 	dirMode    = 0o750
 	lockMode   = 0o600
 	// pingQuery reads the schema, so it fails if the file is unreadable.
@@ -41,6 +42,7 @@ type Store struct {
 	Ingest *DB
 	// Data holds Projects, Issues, processed Events and Ingest Keys.
 	Data *DB
+	dir  string
 	lock *os.File
 }
 
@@ -74,7 +76,7 @@ func Open(dir string) (*Store, error) {
 		return nil, errors.Join(err, ingest.Close(), lock.Close())
 	}
 
-	return &Store{Ingest: ingest, Data: data, lock: lock}, nil
+	return &Store{Ingest: ingest, Data: data, dir: dir, lock: lock}, nil
 }
 
 func (s *Store) Ping(ctx context.Context) error {

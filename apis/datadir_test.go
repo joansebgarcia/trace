@@ -5,14 +5,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/joansebgarcia/amber/tests"
 )
 
 func TestStartCreatesDataDir(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "amber_data")
 
-	if _, err := tests.StartApp(t, dir); err != nil {
+	if _, err := StartApp(t, dir); err != nil {
 		t.Fatalf("start app: %v", err)
 	}
 
@@ -24,9 +22,9 @@ func TestStartCreatesDataDir(t *testing.T) {
 }
 
 func TestStartRejectsLockedDataDir(t *testing.T) {
-	first := tests.NewApp(t)
+	first := NewApp(t)
 
-	_, err := tests.StartApp(t, first.DataDir)
+	_, err := StartApp(t, first.DataDir)
 
 	if err == nil || !strings.Contains(err.Error(), "in use by another process") {
 		t.Fatalf("error = %v, want one saying the data directory is in use", err)

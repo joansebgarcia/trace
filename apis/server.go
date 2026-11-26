@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/joansebgarcia/amber/migrations"
 	"github.com/joansebgarcia/amber/store"
 )
 
@@ -19,6 +20,9 @@ type Config struct {
 	// DataDir is the data directory. It is created if it does not exist.
 	DataDir         string
 	ShutdownTimeout time.Duration
+	// Migrations are the schema migrations applied on Start. Nil uses the
+	// ones built into the binary.
+	Migrations *store.Migrations
 	// Logger receives the server logs. Nil discards them.
 	Logger *slog.Logger
 }
@@ -45,14 +49,24 @@ func NewServer(config Config) *Server {
 	}
 }
 
-// Start opens the data directory, binds the listener and serves in the
-// background.
+// Start opens the data directory, applies the pending migrations, then binds
+// the listener and serves in the background.
 func (s *Server) Start() error {
 	st, err := store.Open(s.config.DataDir)
 	if err != nil {
 		return err
 	}
 	s.logger.Info("data directory open", "dir", s.config.DataDir)
+
+	schema := s.config.Migrations
+	if schema == nil {
+		if schema, err = store.LoadMigrations(migrations.Files); err != nil {
+			return errors.Join(err, st.Close())
+		}
+	}
+	if err := st.Migrate(context.Background(), schema); err != nil {
+		return errors.Join(err, st.Close())
+	}
 
 	listener, err := net.Listen("tcp", s.config.Addr)
 	if err != nil {
