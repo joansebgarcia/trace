@@ -44,6 +44,10 @@ _Avoid_: Custom fingerprint, override hash
 A stack frame from the host application's own code, as opposed to its dependencies or the runtime.
 _Avoid_: User frame, app frame
 
+**Regression**:
+The reopening of a resolved Issue because a new Event arrived for it.
+_Avoid_: Reopen, recurrence, relapse
+
 ### Tenancy
 
 **Project**:
