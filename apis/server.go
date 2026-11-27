@@ -99,7 +99,7 @@ func (s *Server) Start() error {
 	h := hub.New()
 	q, err := queue.New(queue.Config{
 		DB:      st.Ingest,
-		Process: notifyHub(process, st.Data, h),
+		Process: h.Wrap(process, st.Data),
 		Logger:  s.logger,
 	})
 	if err != nil {
@@ -209,19 +209,4 @@ func (s *Server) Run(ctx context.Context) error {
 // ping reports an error unless both files answer and the queue writer runs.
 func (s *Server) ping(ctx context.Context) error {
 	return errors.Join(s.store.Ping(ctx), s.queue.Ping())
-}
-
-// notifyHub wraps process so that each Event that changes data notifies h,
-// after its commit.
-func notifyHub(process func(context.Context, *store.DB, []byte) (bool, error), data *store.DB, h *hub.Hub) func(context.Context, []byte) error {
-	return func(ctx context.Context, event []byte) error {
-		changed, err := process(ctx, data, event)
-		if err != nil {
-			return err
-		}
-		if changed {
-			h.Publish()
-		}
-		return nil
-	}
 }

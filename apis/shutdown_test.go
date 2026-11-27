@@ -16,6 +16,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/joansgarcia/trace/apis"
+	"github.com/joansgarcia/trace/migrations"
 	"github.com/joansgarcia/trace/store"
 )
 
@@ -291,4 +292,60 @@ func waitUnhealthy(t *testing.T, a *App) (int, string) {
 	}
 	t.Fatal("timed out waiting for the app to stop answering ok")
 	return 0, ""
+}
+
+// saveEvent is a processing function for Events of the form
+// "<project>/<event_id>". It stores each one once in the table of
+// withEventsTable, and reports whether it was new.
+func saveEvent(ctx context.Context, data *store.DB, event []byte) (bool, error) {
+	project, id, _ := strings.Cut(string(event), "/")
+	result, err := data.Write.ExecContext(ctx, "INSERT OR IGNORE INTO test_events (project, event_id) VALUES (?, ?)", project, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := result.RowsAffected()
+	return n > 0, err
+}
+
+// withEventsTable makes the app apply the built-in migrations plus one that
+// adds to data.db the table saveEvent writes to.
+func withEventsTable(t testing.TB) Option {
+	t.Helper()
+
+	schema, err := store.LoadMigrations(migrations.Files)
+	if err != nil {
+		t.Fatalf("load migrations: %v", err)
+	}
+	schema.Data = append(schema.Data, store.Migration{
+		Version: len(schema.Data) + 1,
+		Name:    "test_events",
+		SQL:     "CREATE TABLE test_events (project TEXT NOT NULL, event_id TEXT NOT NULL, PRIMARY KEY (project, event_id))",
+	})
+
+	return WithMigrations(schema)
+}
+
+func waitPending(t *testing.T, a *App, want int) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
+	for a.Queue().Pending() != want {
+		if time.Now().After(deadline) {
+			t.Fatalf("pending = %d, want %d", a.Queue().Pending(), want)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func assertEventCount(t *testing.T, a *App, project, id string, want int) {
+	t.Helper()
+
+	var got int
+	query := "SELECT count(*) FROM test_events WHERE project = ? AND event_id = ?"
+	if err := a.Store().Data.Read.QueryRow(query, project, id).Scan(&got); err != nil {
+		t.Fatalf("count Events: %v", err)
+	}
+	if got != want {
+		t.Errorf("Event %s/%s stored %d times, want %d", project, id, got, want)
+	}
 }

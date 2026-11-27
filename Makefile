@@ -30,7 +30,7 @@ go-build:
 
 go-test:
 	go test -race ./...
-	go test -race -tags bench ./apis
+	go test -race -tags bench ./bench
 
 go-lint:
 	test -z "$$(gofmt -l .)" || { gofmt -l .; echo "run gofmt -w on the files above"; exit 1; }

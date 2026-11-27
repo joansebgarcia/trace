@@ -2,7 +2,12 @@
 // publish after their commit; the database takes no part in notifications.
 package hub
 
-import "sync"
+import (
+	"context"
+	"sync"
+
+	"github.com/joansgarcia/trace/store"
+)
 
 // Hub fans out change notifications to its subscribers.
 type Hub struct {
@@ -51,6 +56,22 @@ func (h *Hub) Publish() {
 		case c <- struct{}{}:
 		default:
 		}
+	}
+}
+
+// Wrap returns process as a processing function of the queue that publishes
+// after each Event that changes data, once process has committed it. An
+// Event that fails or changes nothing publishes nothing.
+func (h *Hub) Wrap(process func(ctx context.Context, data *store.DB, event []byte) (bool, error), data *store.DB) func(context.Context, []byte) error {
+	return func(ctx context.Context, event []byte) error {
+		changed, err := process(ctx, data, event)
+		if err != nil {
+			return err
+		}
+		if changed {
+			h.Publish()
+		}
+		return nil
 	}
 }
 
