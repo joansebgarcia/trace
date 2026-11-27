@@ -11,17 +11,21 @@ import (
 	"github.com/joansebgarcia/amber/store"
 )
 
+// The test sequences of data.db are made up. Those of ingest.db are the
+// built-in ones, which the queue needs to start.
 var (
-	ingestV1 = store.Migration{Version: 1, Name: "queue", SQL: "CREATE TABLE queue (id INTEGER PRIMARY KEY)"}
-	ingestV2 = store.Migration{Version: 2, Name: "queue_attempts", SQL: "ALTER TABLE queue ADD COLUMN attempts INTEGER"}
-	dataV1   = store.Migration{Version: 1, Name: "projects", SQL: "CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT NOT NULL)"}
-	dataV2   = store.Migration{Version: 2, Name: "project_slug", SQL: "ALTER TABLE projects ADD COLUMN slug TEXT"}
-	dataV3   = store.Migration{Version: 3, Name: "issues", SQL: "CREATE TABLE issues (id INTEGER PRIMARY KEY)"}
+	dataV1 = store.Migration{Version: 1, Name: "projects", SQL: "CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT NOT NULL)"}
+	dataV2 = store.Migration{Version: 2, Name: "project_slug", SQL: "ALTER TABLE projects ADD COLUMN slug TEXT"}
+	dataV3 = store.Migration{Version: 3, Name: "issues", SQL: "CREATE TABLE issues (id INTEGER PRIMARY KEY)"}
+	ingest = loadIngest()
+	// ingestOld is ingest without its last migration, as an earlier binary
+	// would have it.
+	ingestOld = ingest[:len(ingest)-1]
 )
 
 func TestStartMigratesNewDataDir(t *testing.T) {
 	migrations := &store.Migrations{
-		Ingest: []store.Migration{ingestV1},
+		Ingest: ingest,
 		Data:   []store.Migration{dataV1, dataV2, dataV3},
 	}
 
@@ -30,7 +34,7 @@ func TestStartMigratesNewDataDir(t *testing.T) {
 		t.Fatalf("start app: %v", err)
 	}
 
-	assertVersion(t, "ingest.db", a.Store().Ingest.Read, 1)
+	assertVersion(t, "ingest.db", a.Store().Ingest.Read, len(ingest))
 	assertVersion(t, "data.db", a.Store().Data.Read, 3)
 }
 
@@ -48,19 +52,19 @@ func TestStartAppliesBuiltInMigrations(t *testing.T) {
 func TestStartMigratesOldDataSchema(t *testing.T) {
 	dir := t.TempDir()
 	migrateDir(t, dir, &store.Migrations{
-		Ingest: []store.Migration{ingestV1},
+		Ingest: ingest,
 		Data:   []store.Migration{dataV1},
 	}, "INSERT INTO projects (name) VALUES ('checkout')")
 
 	a, err := StartApp(t, dir, WithMigrations(&store.Migrations{
-		Ingest: []store.Migration{ingestV1},
+		Ingest: ingest,
 		Data:   []store.Migration{dataV1, dataV2, dataV3},
 	}))
 	if err != nil {
 		t.Fatalf("start app: %v", err)
 	}
 
-	assertVersion(t, "ingest.db", a.Store().Ingest.Read, 1)
+	assertVersion(t, "ingest.db", a.Store().Ingest.Read, len(ingest))
 	assertVersion(t, "data.db", a.Store().Data.Read, 3)
 	assertBackups(t, dir, "pre-migrate-1-3.db")
 
@@ -79,19 +83,19 @@ func TestStartMigratesOldDataSchema(t *testing.T) {
 func TestStartMigratesIngestWithoutDataBackup(t *testing.T) {
 	dir := t.TempDir()
 	migrateDir(t, dir, &store.Migrations{
-		Ingest: []store.Migration{ingestV1},
+		Ingest: ingestOld,
 		Data:   []store.Migration{dataV1},
 	})
 
 	a, err := StartApp(t, dir, WithMigrations(&store.Migrations{
-		Ingest: []store.Migration{ingestV1, ingestV2},
+		Ingest: ingest,
 		Data:   []store.Migration{dataV1},
 	}))
 	if err != nil {
 		t.Fatalf("start app: %v", err)
 	}
 
-	assertVersion(t, "ingest.db", a.Store().Ingest.Read, 2)
+	assertVersion(t, "ingest.db", a.Store().Ingest.Read, len(ingest))
 	assertVersion(t, "data.db", a.Store().Data.Read, 1)
 	assertBackups(t, dir)
 }
@@ -100,7 +104,7 @@ func TestStartBacksUpNothingForNewDataDir(t *testing.T) {
 	dir := t.TempDir()
 
 	if _, err := StartApp(t, dir, WithMigrations(&store.Migrations{
-		Ingest: []store.Migration{ingestV1},
+		Ingest: ingest,
 		Data:   []store.Migration{dataV1, dataV2},
 	})); err != nil {
 		t.Fatalf("start app: %v", err)
@@ -112,12 +116,12 @@ func TestStartBacksUpNothingForNewDataDir(t *testing.T) {
 func TestStartRejectsNewerSchema(t *testing.T) {
 	dir := t.TempDir()
 	migrateDir(t, dir, &store.Migrations{
-		Ingest: []store.Migration{ingestV1},
+		Ingest: ingest,
 		Data:   []store.Migration{dataV1, dataV2, dataV3},
 	})
 
 	_, err := StartApp(t, dir, WithMigrations(&store.Migrations{
-		Ingest: []store.Migration{ingestV1},
+		Ingest: ingest,
 		Data:   []store.Migration{dataV1, dataV2},
 	}))
 
@@ -130,12 +134,12 @@ func TestStartRejectsNewerSchema(t *testing.T) {
 func TestStartRejectsNewerSchemaWithoutChanges(t *testing.T) {
 	dir := t.TempDir()
 	migrateDir(t, dir, &store.Migrations{
-		Ingest: []store.Migration{ingestV1},
+		Ingest: ingestOld,
 		Data:   []store.Migration{dataV1, dataV2, dataV3},
 	})
 
 	_, err := StartApp(t, dir, WithMigrations(&store.Migrations{
-		Ingest: []store.Migration{ingestV1, ingestV2},
+		Ingest: ingest,
 		Data:   []store.Migration{dataV1, dataV2},
 	}))
 	if err == nil {
@@ -143,7 +147,15 @@ func TestStartRejectsNewerSchemaWithoutChanges(t *testing.T) {
 	}
 
 	s := openDir(t, dir)
-	assertVersion(t, "ingest.db", s.Ingest.Read, 1)
+	assertVersion(t, "ingest.db", s.Ingest.Read, len(ingestOld))
+}
+
+func loadIngest() []store.Migration {
+	schema, err := store.LoadMigrations(migrations.Files)
+	if err != nil {
+		panic(err)
+	}
+	return schema.Ingest
 }
 
 // migrateDir leaves dir with its files migrated by migrations, as an earlier

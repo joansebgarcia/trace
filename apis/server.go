@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/joansebgarcia/amber/hub"
 	"github.com/joansebgarcia/amber/migrations"
+	"github.com/joansebgarcia/amber/queue"
 	"github.com/joansebgarcia/amber/store"
 )
 
@@ -23,6 +25,9 @@ type Config struct {
 	// Migrations are the schema migrations applied on Start. Nil uses the
 	// ones built into the binary.
 	Migrations *store.Migrations
+	// Process commits a queued Event to data.db, idempotently by Project
+	// and event_id. Nil leaves Events in the queue.
+	Process func(ctx context.Context, data *store.DB, event []byte) error
 	// Logger receives the server logs. Nil discards them.
 	Logger *slog.Logger
 }
@@ -31,6 +36,8 @@ type Server struct {
 	config   Config
 	logger   *slog.Logger
 	store    *store.Store
+	queue    *queue.Queue
+	hub      *hub.Hub
 	server   *http.Server
 	listener net.Listener
 	serveErr chan error
@@ -49,8 +56,8 @@ func NewServer(config Config) *Server {
 	}
 }
 
-// Start opens the data directory, applies the pending migrations, then binds
-// the listener and serves in the background.
+// Start opens the data directory, applies the pending migrations, starts the
+// queue, then binds the listener and serves in the background.
 func (s *Server) Start() error {
 	st, err := store.Open(s.config.DataDir)
 	if err != nil {
@@ -68,14 +75,26 @@ func (s *Server) Start() error {
 		return errors.Join(err, st.Close())
 	}
 
+	h := hub.New()
+	q, err := queue.New(queue.Config{
+		DB:      st.Ingest,
+		Process: notifyHub(s.config.Process, st.Data, h),
+		Logger:  s.logger,
+	})
+	if err != nil {
+		return errors.Join(err, st.Close())
+	}
+
 	listener, err := net.Listen("tcp", s.config.Addr)
 	if err != nil {
-		return errors.Join(fmt.Errorf("listen on %s: %w", s.config.Addr, err), st.Close())
+		return errors.Join(fmt.Errorf("listen on %s: %w", s.config.Addr, err), q.Close(context.Background()), st.Close())
 	}
 	s.store = st
+	s.queue = q
+	s.hub = h
 	s.listener = listener
 	s.server = &http.Server{
-		Handler:           NewRouter(s.logger, st),
+		Handler:           NewRouter(s.logger, s.ping),
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 	s.logger.Info("http server listening", "addr", s.Addr())
@@ -100,11 +119,23 @@ func (s *Server) Store() *store.Store {
 	return s.store
 }
 
-// Shutdown waits for in-flight requests until ctx ends, then closes the data
-// directory.
+// Queue returns the queue of accepted Events. It is nil before Start.
+func (s *Server) Queue() *queue.Queue {
+	return s.queue
+}
+
+// Hub returns the hub notified after commits to data.db. It is nil before
+// Start.
+func (s *Server) Hub() *hub.Hub {
+	return s.hub
+}
+
+// Shutdown waits for in-flight requests, commits the accepted Events and
+// lets the workers finish the Events in progress, until ctx ends. Then it
+// closes the data directory.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.logger.Info("shutting down")
-	return errors.Join(s.server.Shutdown(ctx), s.store.Close())
+	return errors.Join(s.server.Shutdown(ctx), s.queue.Close(ctx), s.store.Close())
 }
 
 // Run starts the server and blocks until ctx ends or serving fails, then
@@ -118,7 +149,7 @@ func (s *Server) Run(ctx context.Context) error {
 	case <-ctx.Done():
 	case err, failed := <-s.serveErr:
 		if failed {
-			return errors.Join(fmt.Errorf("serve http: %w", err), s.store.Close())
+			return errors.Join(fmt.Errorf("serve http: %w", err), s.queue.Close(context.WithoutCancel(ctx)), s.store.Close())
 		}
 		// Serving ends cleanly only after Shutdown, which already closed the
 		// store.
@@ -129,4 +160,24 @@ func (s *Server) Run(ctx context.Context) error {
 	defer cancel()
 
 	return s.Shutdown(shutdownCtx)
+}
+
+// ping reports an error unless both files answer and the queue writer runs.
+func (s *Server) ping(ctx context.Context) error {
+	return errors.Join(s.store.Ping(ctx), s.queue.Ping())
+}
+
+// notifyHub wraps process so that each Event it commits to data notifies
+// h. A nil process stays nil.
+func notifyHub(process func(context.Context, *store.DB, []byte) error, data *store.DB, h *hub.Hub) func(context.Context, []byte) error {
+	if process == nil {
+		return nil
+	}
+	return func(ctx context.Context, event []byte) error {
+		if err := process(ctx, data, event); err != nil {
+			return err
+		}
+		h.Publish()
+		return nil
+	}
 }
