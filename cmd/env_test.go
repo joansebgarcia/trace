@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/joansebgarcia/trace/cmd"
+	"github.com/joansgarcia/trace/cmd"
 )
 
 func TestServeHTTPPrecedence(t *testing.T) {

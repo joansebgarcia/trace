@@ -15,7 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/joansebgarcia/trace/apis"
+	"github.com/joansgarcia/trace/apis"
 )
 
 const (

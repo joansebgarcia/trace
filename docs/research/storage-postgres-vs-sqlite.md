@@ -1,6 +1,6 @@
 # Almacenamiento: Postgres vs SQLite embebido
 
-Ticket: [#2](https://github.com/joansebgarcia/trace/issues/2) (mapa [#1](https://github.com/joansebgarcia/trace/issues/1)).
+Ticket: [#2](https://github.com/joansgarcia/trace/issues/2) (mapa [#1](https://github.com/joansgarcia/trace/issues/1)).
 Fecha de investigación: 2026-11-24.
 
 **Pregunta.** Para un despliegue de un binario Go + una DB y ~500 Events/s en 2 vCPU / 4 GB (ingesta HTTP p99 < 50 ms, aceptar y encolar): ¿qué ofrecen Postgres y SQLite (modo WAL, driver puro Go) en throughput de escritura concurrente, payloads JSON, upserts atómicos de conteo de Issues, notificación y operación? **Hechos, no la decisión.**

@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/joansebgarcia/trace/store"
+	"github.com/joansgarcia/trace/store"
 )
 
 func TestOpenAppliesPragmas(t *testing.T) {

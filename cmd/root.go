@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/joansebgarcia/trace/web"
+	"github.com/joansgarcia/trace/web"
 )
 
 // binary is the product name, used for the binary and the env prefix. It is

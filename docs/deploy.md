@@ -41,7 +41,7 @@ An Event is durable in `ingest.db` once Trace answers `202`. Background workers 
 
 ## Docker
 
-The image `ghcr.io/joansebgarcia/trace` runs as the `nonroot` user (uid 65532) on a distroless base, and stores its data in the volume `/data`. Tags: `X.Y.Z` for each release, `X.Y` for the newest stable patch of that minor version, and `latest` for the newest stable release. Pre-releases publish only their `X.Y.Z` tag.
+The image `ghcr.io/joansgarcia/trace` runs as the `nonroot` user (uid 65532) on a distroless base, and stores its data in the volume `/data`. Tags: `X.Y.Z` for each release, `X.Y` for the newest stable patch of that minor version, and `latest` for the newest stable release. Pre-releases publish only their `X.Y.Z` tag.
 
 ```sh
 docker run -d --name trace \
@@ -49,7 +49,7 @@ docker run -d --name trace \
   --stop-timeout 30 \
   -p 127.0.0.1:8090:8090 \
   -v trace_data:/data \
-  ghcr.io/joansebgarcia/trace:0.1
+  ghcr.io/joansgarcia/trace:0.1
 ```
 
 The port binds to `127.0.0.1` so that only a reverse proxy on the host reaches it; see [TLS with Caddy](#tls-with-caddy) for the `TRACE_TRUSTED_PROXIES` it needs. `--stop-timeout` gives Trace more time than its own `--shutdown-timeout` before Docker sends `SIGKILL`.
@@ -62,7 +62,7 @@ Use a named volume, or a host directory owned by uid 65532 (`sudo chown 65532:65
 # docker-compose.yml
 services:
   trace:
-    image: ghcr.io/joansebgarcia/trace:0.1
+    image: ghcr.io/joansgarcia/trace:0.1
     restart: unless-stopped
     stop_grace_period: 30s
     ports:
@@ -87,12 +87,12 @@ The image already passes `serve --http=0.0.0.0:8090 --dir=/data`. To add flags, 
 
 ## Binary with systemd
 
-Download the archive for your OS and architecture from the [releases](https://github.com/joansebgarcia/trace/releases), and verify it against `checksums.txt`:
+Download the archive for your OS and architecture from the [releases](https://github.com/joansgarcia/trace/releases), and verify it against `checksums.txt`:
 
 ```sh
 VERSION=0.1.0   # without the leading v
 ARCH=amd64      # or arm64
-BASE=https://github.com/joansebgarcia/trace/releases/download/v$VERSION
+BASE=https://github.com/joansgarcia/trace/releases/download/v$VERSION
 curl -fsSLO "$BASE/trace_${VERSION}_linux_${ARCH}.tar.gz"
 curl -fsSLO "$BASE/checksums.txt"
 sha256sum --check --ignore-missing checksums.txt

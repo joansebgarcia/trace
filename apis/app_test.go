@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -13,11 +14,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/joansebgarcia/trace/apis"
-	"github.com/joansebgarcia/trace/store"
+	"github.com/joansgarcia/trace/apis"
+	"github.com/joansgarcia/trace/store"
 )
 
 const timeout = 5 * time.Second
+
+// errHeld is the error of the processing function of WithoutProcess.
+var errHeld = errors.New("held in the queue")
 
 // App is an app started for a test. It stops when the test ends.
 type App struct {
@@ -143,8 +147,15 @@ func (a *App) Stop(t testing.TB) {
 }
 
 // WithProcess makes the app process queued Events with process.
-func WithProcess(process func(ctx context.Context, data *store.DB, event []byte) error) Option {
+func WithProcess(process func(ctx context.Context, data *store.DB, event []byte) (bool, error)) Option {
 	return func(c *apis.Config) { c.Process = process }
+}
+
+// WithoutProcess makes the app keep queued Events in the queue: its
+// processing function fails on every attempt, so the queue retries each one
+// until it stops.
+func WithoutProcess() Option {
+	return WithProcess(func(context.Context, *store.DB, []byte) (bool, error) { return false, errHeld })
 }
 
 // WithMigrations makes the app apply migrations instead of the ones built

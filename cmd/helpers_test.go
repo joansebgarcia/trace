@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/joansebgarcia/trace/cmd"
+	"github.com/joansgarcia/trace/cmd"
 )
 
 const timeout = 5 * time.Second

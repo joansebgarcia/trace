@@ -3,10 +3,10 @@ It is an open-source, platform-agnostic engine for real-time error capture, grou
 
 ## Deployment
 
-Trace ships as one binary, `trace`, for Linux, macOS and Windows on amd64 and arm64, and as the image `ghcr.io/joansebgarcia/trace`. It needs no database server and no configuration file:
+Trace ships as one binary, `trace`, for Linux, macOS and Windows on amd64 and arm64, and as the image `ghcr.io/joansgarcia/trace`. It needs no database server and no configuration file:
 
 ```sh
-docker run -d -p 127.0.0.1:8090:8090 -v trace_data:/data ghcr.io/joansebgarcia/trace:0.1
+docker run -d -p 127.0.0.1:8090:8090 -v trace_data:/data ghcr.io/joansgarcia/trace:0.1
 ```
 
 The [deployment guide](docs/deploy.md) covers Docker, systemd, TLS with Caddy, backups, upgrades and the reference capacity.

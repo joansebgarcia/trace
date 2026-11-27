@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/joansebgarcia/trace/web"
+	"github.com/joansgarcia/trace/web"
 )
 
 // TestEmbeddedUI checks the web UI built into the binary it runs in: with

@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/joansebgarcia/trace/queue"
+	"github.com/joansgarcia/trace/queue"
 )
 
 // maxBenchEvent is the largest Event body the benchmark endpoint accepts.
