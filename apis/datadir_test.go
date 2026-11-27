@@ -8,7 +8,7 @@ import (
 )
 
 func TestStartCreatesDataDir(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "amber_data")
+	dir := filepath.Join(t.TempDir(), "trace_data")
 
 	if _, err := StartApp(t, dir); err != nil {
 		t.Fatalf("start app: %v", err)

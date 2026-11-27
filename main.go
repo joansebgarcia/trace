@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/joansebgarcia/amber/cmd"
+	"github.com/joansebgarcia/trace/cmd"
 )
 
 // version is set at build time with -ldflags "-X main.version=<version>".

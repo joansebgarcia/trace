@@ -33,7 +33,7 @@ jobs:
       - run: make go-build
       - name: Check that GET / serves the placeholder
         run: |
-          bin/amber serve --http=127.0.0.1:8090 --dir="$RUNNER_TEMP/data" &
+          bin/trace serve --http=127.0.0.1:8090 --dir="$RUNNER_TEMP/data" &
           curl -fsS --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:8090/api/health
           curl -fsS http://127.0.0.1:8090/ | grep -F "The web UI is not included in this build"
-          bin/amber --version | grep -F "without the web UI"
+          bin/trace --version | grep -F "without the web UI"

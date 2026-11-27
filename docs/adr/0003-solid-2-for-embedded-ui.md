@@ -1,6 +1,6 @@
 # Solid 2 for the embedded UI
 
-Supersedes [ADR 0002](./0002-vue-for-embedded-ui.md). The embedded web UI is built with Solid 2 (`solid-js`/`@solidjs/web` 2.0.4 at adoption, Vite with `@solidjs/vite-plugin`, `@solidjs/router` 2, `@solid-primitives/i18n` 3) instead of Vue 3. ADR 0002 rejected Solid because its tooling still lived in `next`; since 2026-11-17 core, Vite plugin, router and i18n are stable, and the team chose to adopt a days-old major to explore what Solid 2 enables in Amber, accepting a younger ecosystem in exchange for fine-grained reactivity and a smaller bundle (~27 KB gzip with router and i18n, against ~47 KB for Vue with `vue-i18n`).
+Supersedes [ADR 0002](./0002-vue-for-embedded-ui.md). The embedded web UI is built with Solid 2 (`solid-js`/`@solidjs/web` 2.0.4 at adoption, Vite with `@solidjs/vite-plugin`, `@solidjs/router` 2, `@solid-primitives/i18n` 3) instead of Vue 3. ADR 0002 rejected Solid because its tooling still lived in `next`; since 2026-11-17 core, Vite plugin, router and i18n are stable, and the team chose to adopt a days-old major to explore what Solid 2 enables in Trace, accepting a younger ecosystem in exchange for fine-grained reactivity and a smaller bundle (~27 KB gzip with router and i18n, against ~47 KB for Vue with `vue-i18n`).
 
 ## Consequences
 

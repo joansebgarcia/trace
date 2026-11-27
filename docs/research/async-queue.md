@@ -1,6 +1,6 @@
 # Research: cola async — respaldada por la DB vs en memoria
 
-Ticket: joansebgarcia/amber#3 (hijo del mapa #1). Fecha: 2026-11-24.
+Ticket: joansebgarcia/trace#3 (hijo del mapa #1). Fecha: 2026-11-24.
 
 ## Pregunta
 

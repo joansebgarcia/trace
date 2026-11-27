@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/joansebgarcia/amber/apis"
-	"github.com/joansebgarcia/amber/store"
+	"github.com/joansebgarcia/trace/apis"
+	"github.com/joansebgarcia/trace/store"
 )
 
 const timeout = 5 * time.Second

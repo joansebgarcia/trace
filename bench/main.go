@@ -181,7 +181,7 @@ func (r *result) fail(reason string) {
 
 func main() {
 	var o options
-	flag.StringVar(&o.server, "server", "bin/amber-bench", "command that runs the server binary built with the bench tag; serve and its flags are appended")
+	flag.StringVar(&o.server, "server", "bin/trace-bench", "command that runs the server binary built with the bench tag; serve and its flags are appended")
 	flag.Float64Var(&o.rate, "rate", 500, "Events/s to send, and the target to accept")
 	flag.DurationVar(&o.duration, "duration", 30*time.Second, "length of the measured run")
 	flag.DurationVar(&o.warmup, "warmup", 5*time.Second, "length of the unmeasured run before it")
@@ -202,7 +202,7 @@ func main() {
 // benchmark runs the server, loads it, and prints the report. It reports
 // whether the run met the target.
 func benchmark(o options) (bool, error) {
-	dir, err := os.MkdirTemp("", "amber-bench-")
+	dir, err := os.MkdirTemp("", "trace-bench-")
 	if err != nil {
 		return false, err
 	}

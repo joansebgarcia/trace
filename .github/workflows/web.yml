@@ -43,9 +43,9 @@ jobs:
       - run: make build
       - name: Check that GET / serves the embedded UI
         run: |
-          bin/amber serve --http=127.0.0.1:8090 --dir="$RUNNER_TEMP/data" &
+          bin/trace serve --http=127.0.0.1:8090 --dir="$RUNNER_TEMP/data" &
           curl -fsS --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:8090/api/health
           curl -fsS http://127.0.0.1:8090/ | grep -F '<div id="app">'
           curl -fsS http://127.0.0.1:8090/issues/123 | grep -F '<div id="app">'
           curl -sS http://127.0.0.1:8090/api/missing | grep -F '{"error":"not_found"}'
-          bin/amber --version | grep -F "with the web UI embedded"
+          bin/trace --version | grep -F "with the web UI embedded"

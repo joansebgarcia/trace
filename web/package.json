@@ -1,5 +1,5 @@
 {
-  "name": "@amber/web",
+  "name": "@trace/web",
   "type": "module",
   "private": true,
   "engines": {

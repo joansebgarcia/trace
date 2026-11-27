@@ -15,12 +15,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/joansebgarcia/amber/apis"
+	"github.com/joansebgarcia/trace/apis"
 )
 
 const (
 	defaultAddr            = "127.0.0.1:8090"
-	defaultDir             = "./amber_data"
+	defaultDir             = "./trace_data"
 	defaultLogFormat       = "text"
 	defaultLogLevel        = "info"
 	defaultShutdownTimeout = 10 * time.Second

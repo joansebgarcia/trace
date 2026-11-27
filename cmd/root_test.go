@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/joansebgarcia/amber/web"
+	"github.com/joansebgarcia/trace/web"
 )
 
 func TestVersion(t *testing.T) {

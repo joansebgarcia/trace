@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/joansebgarcia/amber/migrations"
-	"github.com/joansebgarcia/amber/store"
+	"github.com/joansebgarcia/trace/migrations"
+	"github.com/joansebgarcia/trace/store"
 )
 
 // The test sequences of data.db are made up. Those of ingest.db are the
