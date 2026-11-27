@@ -12,11 +12,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/joansebgarcia/trace/hub"
-	"github.com/joansebgarcia/trace/migrations"
-	"github.com/joansebgarcia/trace/queue"
-	"github.com/joansebgarcia/trace/store"
-	"github.com/joansebgarcia/trace/web"
+	"github.com/joansgarcia/trace/hub"
+	"github.com/joansgarcia/trace/ingest"
+	"github.com/joansgarcia/trace/migrations"
+	"github.com/joansgarcia/trace/projects"
+	"github.com/joansgarcia/trace/queue"
+	"github.com/joansgarcia/trace/store"
+	"github.com/joansgarcia/trace/web"
 )
 
 const readHeaderTimeout = 10 * time.Second
@@ -30,8 +32,9 @@ type Config struct {
 	// ones built into the binary.
 	Migrations *store.Migrations
 	// Process commits a queued Event to data.db, idempotently by Project
-	// and event_id. Nil leaves Events in the queue.
-	Process func(ctx context.Context, data *store.DB, event []byte) error
+	// and event_id, and reports whether it changed data.db. Nil uses the
+	// processing of the ingest endpoint.
+	Process func(ctx context.Context, data *store.DB, event []byte) (bool, error)
 	// TrustedProxies are the CIDRs of the reverse proxies whose
 	// X-Forwarded-For and X-Forwarded-Proto headers resolve the IP and
 	// scheme of the client. Empty ignores those headers.
@@ -50,6 +53,7 @@ type Server struct {
 	store    *store.Store
 	queue    *queue.Queue
 	hub      *hub.Hub
+	projects *projects.Projects
 	server   *http.Server
 	listener net.Listener
 	serveErr chan error
@@ -88,10 +92,14 @@ func (s *Server) Start() error {
 		return errors.Join(err, st.Close())
 	}
 
+	process := s.config.Process
+	if process == nil {
+		process = ingest.NewProcess(s.logger)
+	}
 	h := hub.New()
 	q, err := queue.New(queue.Config{
 		DB:      st.Ingest,
-		Process: notifyHub(s.config.Process, st.Data, h),
+		Process: notifyHub(process, st.Data, h),
 		Logger:  s.logger,
 	})
 	if err != nil {
@@ -105,13 +113,14 @@ func (s *Server) Start() error {
 	s.store = st
 	s.queue = q
 	s.hub = h
+	s.projects = projects.New(st.Data)
 	s.listener = listener
 	ui := s.config.UI
 	if ui == nil {
 		ui = web.FS
 	}
 	s.server = &http.Server{
-		Handler:           NewRouter(s.logger, s.config.TrustedProxies, s.ping, &s.stopping, q, ui),
+		Handler:           NewRouter(s.logger, s.config.TrustedProxies, s.ping, &s.stopping, q, ingest.NewHandler(s.projects, q, s.logger), ui),
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 	s.logger.Info("http server listening", "addr", s.Addr())
@@ -139,6 +148,12 @@ func (s *Server) Store() *store.Store {
 // Queue returns the queue of accepted Events. It is nil before Start.
 func (s *Server) Queue() *queue.Queue {
 	return s.queue
+}
+
+// Projects returns the Projects of data.db, which resolve Ingest Keys. It is
+// nil before Start.
+func (s *Server) Projects() *projects.Projects {
+	return s.projects
 }
 
 // Hub returns the hub notified after commits to data.db. It is nil before
@@ -196,17 +211,17 @@ func (s *Server) ping(ctx context.Context) error {
 	return errors.Join(s.store.Ping(ctx), s.queue.Ping())
 }
 
-// notifyHub wraps process so that each Event it commits to data notifies
-// h. A nil process stays nil.
-func notifyHub(process func(context.Context, *store.DB, []byte) error, data *store.DB, h *hub.Hub) func(context.Context, []byte) error {
-	if process == nil {
-		return nil
-	}
+// notifyHub wraps process so that each Event that changes data notifies h,
+// after its commit.
+func notifyHub(process func(context.Context, *store.DB, []byte) (bool, error), data *store.DB, h *hub.Hub) func(context.Context, []byte) error {
 	return func(ctx context.Context, event []byte) error {
-		if err := process(ctx, data, event); err != nil {
+		changed, err := process(ctx, data, event)
+		if err != nil {
 			return err
 		}
-		h.Publish()
+		if changed {
+			h.Publish()
+		}
 		return nil
 	}
 }

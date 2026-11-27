@@ -15,8 +15,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/joansebgarcia/trace/apis"
-	"github.com/joansebgarcia/trace/store"
+	"github.com/joansgarcia/trace/apis"
+	"github.com/joansgarcia/trace/store"
 )
 
 func TestRequestsDuringShutdownReturnShuttingDown(t *testing.T) {
@@ -77,9 +77,9 @@ func TestEventsAcceptedBeforeShutdownAreProcessedBeforeExit(t *testing.T) {
 	close(release)
 	<-stopped
 
-	// Without a processing function, the second app only shows what the
-	// first one left.
-	second, err := StartApp(t, dir, withEventsTable(t))
+	// Without processing, the second app only shows what the first one
+	// left.
+	second, err := StartApp(t, dir, withEventsTable(t), WithoutProcess())
 	if err != nil {
 		t.Fatalf("restart app: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestEventsAcceptedBeforeShutdownAreProcessedBeforeExit(t *testing.T) {
 
 func TestShutdownGivesUpAfterTimeoutAndKeepsEventsForNextStart(t *testing.T) {
 	dir := t.TempDir()
-	queued, err := StartApp(t, dir, withEventsTable(t))
+	queued, err := StartApp(t, dir, withEventsTable(t), WithoutProcess())
 	if err != nil {
 		t.Fatalf("start app: %v", err)
 	}
@@ -189,7 +189,7 @@ func holdOpen(t *testing.T, path string) {
 
 func TestShutdownGivesUpAfterTimeoutWhenProcessIgnoresItsContext(t *testing.T) {
 	dir := t.TempDir()
-	queued, err := StartApp(t, dir, withEventsTable(t))
+	queued, err := StartApp(t, dir, withEventsTable(t), WithoutProcess())
 	if err != nil {
 		t.Fatalf("start app: %v", err)
 	}
@@ -203,14 +203,14 @@ func TestShutdownGivesUpAfterTimeoutWhenProcessIgnoresItsContext(t *testing.T) {
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
-	stuck := func(ctx context.Context, data *store.DB, event []byte) error {
+	stuck := func(ctx context.Context, data *store.DB, event []byte) (bool, error) {
 		tx, err := data.Write.Begin()
 		if err != nil {
-			return err
+			return false, err
 		}
 		started <- struct{}{}
 		<-release
-		return tx.Rollback()
+		return false, tx.Rollback()
 	}
 	config := apis.Config{
 		Addr:            "127.0.0.1:0",
@@ -238,10 +238,10 @@ func TestShutdownGivesUpAfterTimeoutWhenProcessIgnoresItsContext(t *testing.T) {
 // newBlockingProcess returns a processing function that signals started when it
 // receives an Event, then waits for release or for its context to end before
 // saving it like saveEvent.
-func newBlockingProcess() (started <-chan struct{}, release chan struct{}, process func(context.Context, *store.DB, []byte) error) {
+func newBlockingProcess() (started <-chan struct{}, release chan struct{}, process func(context.Context, *store.DB, []byte) (bool, error)) {
 	s := make(chan struct{}, 1)
 	release = make(chan struct{})
-	process = func(ctx context.Context, data *store.DB, event []byte) error {
+	process = func(ctx context.Context, data *store.DB, event []byte) (bool, error) {
 		select {
 		case s <- struct{}{}:
 		default:
@@ -249,7 +249,7 @@ func newBlockingProcess() (started <-chan struct{}, release chan struct{}, proce
 		select {
 		case <-release:
 		case <-ctx.Done():
-			return ctx.Err()
+			return false, ctx.Err()
 		}
 		return saveEvent(ctx, data, event)
 	}

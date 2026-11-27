@@ -41,7 +41,7 @@ dockers_v2:
   - id: trace
     ids: [trace]
     images:
-      - ghcr.io/joansebgarcia/trace
+      - ghcr.io/joansgarcia/trace
     tags:
       - "{{ .Version }}"
       - "{{ if not .Prerelease }}{{ .Major }}.{{ .Minor }}{{ end }}"

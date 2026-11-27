@@ -11,7 +11,8 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/joansebgarcia/trace/queue"
+	"github.com/joansgarcia/trace/ingest"
+	"github.com/joansgarcia/trace/queue"
 )
 
 // assetsPrefix starts the path of every asset of the UI build, the
@@ -60,11 +61,13 @@ func (n *notFoundWriter) Write(p []byte) (int, error) {
 // NewRouter serves the HTTP API under /api/ and the web UI in ui everywhere
 // else. ping reports whether the instance is healthy; once stopping is set,
 // every request gets 503 shutting_down. Requests from proxies resolve their
-// client through the forwarding headers. Builds with the bench tag also serve
-// a benchmark endpoint that enqueues on q.
-func NewRouter(logger *slog.Logger, proxies []netip.Prefix, ping func(context.Context) error, stopping *atomic.Bool, q *queue.Queue, ui fs.FS) http.Handler {
+// client through the forwarding headers. events serves the ingest endpoint.
+// Builds with the bench tag also serve a benchmark endpoint that enqueues on
+// q.
+func NewRouter(logger *slog.Logger, proxies []netip.Prefix, ping func(context.Context) error, stopping *atomic.Bool, q *queue.Queue, events http.Handler, ui fs.FS) http.Handler {
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/health", serveHealth(logger, ping))
+	api.Handle("POST "+ingest.Path, events)
 	routeBench(api, q)
 
 	routes := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -1,10 +1,11 @@
-module github.com/joansebgarcia/trace
+module github.com/joansgarcia/trace
 
 go 1.26.0
 
 toolchain go1.26.1
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.9
 	golang.org/x/sys v0.50.0
@@ -13,7 +14,6 @@ require (
 
 require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect

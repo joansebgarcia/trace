@@ -1,7 +1,7 @@
 name: release
 
 # A tag vX.Y.Z on main publishes the binaries, checksums.txt, the changelog
-# and the image ghcr.io/joansebgarcia/trace (see .goreleaser.yaml).
+# and the image ghcr.io/joansgarcia/trace (see .goreleaser.yaml).
 on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]

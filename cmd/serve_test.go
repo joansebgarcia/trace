@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/joansebgarcia/trace/store"
+	"github.com/joansgarcia/trace/store"
 )
 
 func TestServeAnswersHealth(t *testing.T) {

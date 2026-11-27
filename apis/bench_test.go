@@ -61,10 +61,13 @@ func TestBenchEndpoint(t *testing.T) {
 }
 
 // newBenchApp returns an app whose queue, checked when the test ends, must
-// hold pending Events: the ones the case sends, as no workers process them.
+// hold pending Events: the ones the case sends, as none is processed.
 func newBenchApp(pending int) func(t testing.TB) *App {
 	return func(t testing.TB) *App {
-		app := NewApp(t)
+		app, err := StartApp(t, t.TempDir(), WithoutProcess())
+		if err != nil {
+			t.Fatalf("start app: %v", err)
+		}
 		t.Cleanup(func() {
 			if got := app.Queue().Pending(); got != pending {
 				t.Errorf("pending = %d, want %d", got, pending)

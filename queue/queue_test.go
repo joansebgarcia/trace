@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/joansebgarcia/trace/migrations"
-	"github.com/joansebgarcia/trace/queue"
-	"github.com/joansebgarcia/trace/store"
+	"github.com/joansgarcia/trace/migrations"
+	"github.com/joansgarcia/trace/queue"
+	"github.com/joansgarcia/trace/store"
 )
 
 const timeout = 5 * time.Second

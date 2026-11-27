@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/joansebgarcia/trace/migrations"
-	"github.com/joansebgarcia/trace/store"
+	"github.com/joansgarcia/trace/migrations"
+	"github.com/joansgarcia/trace/store"
 )
 
 func TestEnqueuedEventsReachDataAndLeaveTheQueue(t *testing.T) {
@@ -31,15 +31,15 @@ func TestEventSavedBeforeACrashIsStoredOnceAfterRestart(t *testing.T) {
 	saved := make(chan struct{}, 1)
 	// crashing commits the Event to data.db, then fails on every attempt so
 	// the queue never deletes it, until the app stops as a crash would.
-	crashing := func(ctx context.Context, data *store.DB, event []byte) error {
-		if err := saveEvent(ctx, data, event); err != nil {
-			return err
+	crashing := func(ctx context.Context, data *store.DB, event []byte) (bool, error) {
+		if _, err := saveEvent(ctx, data, event); err != nil {
+			return false, err
 		}
 		select {
 		case saved <- struct{}{}:
 		default:
 		}
-		return errors.New("crash")
+		return false, errors.New("crash")
 	}
 	first, err := StartApp(t, dir, withEventsTable(t), WithProcess(crashing))
 	if err != nil {
@@ -82,11 +82,15 @@ func TestHubSubscriberIsNotifiedAfterCommitToData(t *testing.T) {
 
 // saveEvent is a processing function for Events of the form
 // "<project>/<event_id>". It stores each one once in the table of
-// withEventsTable.
-func saveEvent(ctx context.Context, data *store.DB, event []byte) error {
+// withEventsTable, and reports whether it was new.
+func saveEvent(ctx context.Context, data *store.DB, event []byte) (bool, error) {
 	project, id, _ := strings.Cut(string(event), "/")
-	_, err := data.Write.ExecContext(ctx, "INSERT OR IGNORE INTO events (project, event_id) VALUES (?, ?)", project, id)
-	return err
+	result, err := data.Write.ExecContext(ctx, "INSERT OR IGNORE INTO test_events (project, event_id) VALUES (?, ?)", project, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := result.RowsAffected()
+	return n > 0, err
 }
 
 // withEventsTable makes the app apply the built-in migrations plus one that
@@ -101,7 +105,7 @@ func withEventsTable(t testing.TB) Option {
 	schema.Data = append(schema.Data, store.Migration{
 		Version: len(schema.Data) + 1,
 		Name:    "test_events",
-		SQL:     "CREATE TABLE events (project TEXT NOT NULL, event_id TEXT NOT NULL, PRIMARY KEY (project, event_id))",
+		SQL:     "CREATE TABLE test_events (project TEXT NOT NULL, event_id TEXT NOT NULL, PRIMARY KEY (project, event_id))",
 	})
 
 	return WithMigrations(schema)
@@ -123,7 +127,7 @@ func assertEventCount(t *testing.T, a *App, project, id string, want int) {
 	t.Helper()
 
 	var got int
-	query := "SELECT count(*) FROM events WHERE project = ? AND event_id = ?"
+	query := "SELECT count(*) FROM test_events WHERE project = ? AND event_id = ?"
 	if err := a.Store().Data.Read.QueryRow(query, project, id).Scan(&got); err != nil {
 		t.Fatalf("count Events: %v", err)
 	}
