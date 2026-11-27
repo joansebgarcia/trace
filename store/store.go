@@ -21,6 +21,8 @@ const (
 	lockMode   = 0o600
 	// pingQuery reads the schema, so it fails if the file is unreadable.
 	pingQuery = "SELECT count(*) FROM sqlite_master"
+	// checkpointQuery copies the whole WAL into the file and empties it.
+	checkpointQuery = "PRAGMA wal_checkpoint(TRUNCATE)"
 	// readConns is the size of the read pool of each file.
 	readConns = 8
 )
@@ -35,7 +37,10 @@ var pragmas = []string{
 	"cache_size = -32000",
 }
 
-var errLocked = errors.New("locked")
+var (
+	errLocked         = errors.New("locked")
+	errCheckpointBusy = errors.New("WAL checkpoint blocked by another connection")
+)
 
 type Store struct {
 	// Ingest is the queue of accepted Events.
@@ -83,6 +88,13 @@ func (s *Store) Ping(ctx context.Context) error {
 	return errors.Join(s.Ingest.Ping(ctx), s.Data.Ping(ctx))
 }
 
+// Checkpoint copies the WAL of both files into them and empties it, so that
+// the next start has no WAL to replay. It gives up when ctx ends, such as
+// while a writer still holds a file.
+func (s *Store) Checkpoint(ctx context.Context) error {
+	return errors.Join(checkpoint(ctx, s.Ingest.Write), checkpoint(ctx, s.Data.Write))
+}
+
 func (s *Store) Close() error {
 	return errors.Join(s.Ingest.Close(), s.Data.Close(), s.lock.Close())
 }
@@ -120,6 +132,17 @@ func (c connector) Driver() driver.Driver {
 func readSchema(ctx context.Context, pool *sql.DB) error {
 	var tables int
 	return pool.QueryRowContext(ctx, pingQuery).Scan(&tables)
+}
+
+func checkpoint(ctx context.Context, pool *sql.DB) error {
+	var busy, frames, copied int
+	if err := pool.QueryRowContext(ctx, checkpointQuery).Scan(&busy, &frames, &copied); err != nil {
+		return fmt.Errorf("checkpoint WAL: %w", err)
+	}
+	if busy != 0 {
+		return errCheckpointBusy
+	}
+	return nil
 }
 
 func lockDir(dir string) (*os.File, error) {

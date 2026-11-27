@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/joansebgarcia/amber/hub"
@@ -41,6 +42,7 @@ type Server struct {
 	server   *http.Server
 	listener net.Listener
 	serveErr chan error
+	stopping atomic.Bool
 }
 
 func NewServer(config Config) *Server {
@@ -94,7 +96,7 @@ func (s *Server) Start() error {
 	s.hub = h
 	s.listener = listener
 	s.server = &http.Server{
-		Handler:           NewRouter(s.logger, s.ping),
+		Handler:           NewRouter(s.logger, s.ping, &s.stopping),
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 	s.logger.Info("http server listening", "addr", s.Addr())
@@ -130,12 +132,24 @@ func (s *Server) Hub() *hub.Hub {
 	return s.hub
 }
 
-// Shutdown waits for in-flight requests, commits the accepted Events and
-// lets the workers finish the Events in progress, until ctx ends. Then it
-// closes the data directory.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.logger.Info("shutting down")
-	return errors.Join(s.server.Shutdown(ctx), s.queue.Close(ctx), s.store.Close())
+	s.stopping.Store(true)
+
+	queueErr := s.queue.Close(ctx)
+	s.hub.Close()
+	serverErr := s.server.Shutdown(ctx)
+	if serverErr != nil {
+		// Cut the requests still in flight before their files close.
+		serverErr = errors.Join(serverErr, s.server.Close())
+	}
+	err := errors.Join(queueErr, serverErr, s.store.Checkpoint(ctx), s.store.Close())
+	if err != nil {
+		s.logger.Error("shutdown incomplete; queued Events are processed on the next start", "err", err)
+		return err
+	}
+	s.logger.Info("shut down")
+	return nil
 }
 
 // Run starts the server and blocks until ctx ends or serving fails, then
@@ -145,21 +159,21 @@ func (s *Server) Run(ctx context.Context) error {
 		return err
 	}
 
+	var serveErr error
 	select {
 	case <-ctx.Done():
 	case err, failed := <-s.serveErr:
-		if failed {
-			return errors.Join(fmt.Errorf("serve http: %w", err), s.queue.Close(context.WithoutCancel(ctx)), s.store.Close())
+		if !failed {
+			// Serving ends cleanly only after Shutdown, which already ran.
+			return nil
 		}
-		// Serving ends cleanly only after Shutdown, which already closed the
-		// store.
-		return nil
+		serveErr = fmt.Errorf("serve http: %w", err)
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.config.ShutdownTimeout)
 	defer cancel()
 
-	return s.Shutdown(shutdownCtx)
+	return errors.Join(serveErr, s.Shutdown(shutdownCtx))
 }
 
 // ping reports an error unless both files answer and the queue writer runs.

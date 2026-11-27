@@ -21,6 +21,7 @@ func TestHealth(t *testing.T) {
 			Path:   "/api/health",
 			NewApp: func(t testing.TB) *App {
 				app := NewApp(t)
+				app.BrokenStore = true
 				_ = app.Store().Data.Write.Close()
 				return app
 			},

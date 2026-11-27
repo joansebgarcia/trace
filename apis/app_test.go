@@ -18,9 +18,12 @@ type App struct {
 	// DataDir is the data directory of the app.
 	DataDir string
 	// URL is the base URL of the HTTP API, such as "http://127.0.0.1:54321".
-	URL     string
-	Client  *http.Client
-	stopped bool
+	URL    string
+	Client *http.Client
+	// BrokenStore makes Stop ignore the shutdown error, for tests that break
+	// the data directory on purpose.
+	BrokenStore bool
+	stopped     bool
 }
 
 // Option changes the config of an app before it starts.
@@ -79,7 +82,7 @@ func (a *App) Stop(t testing.TB) {
 	a.stopped = true
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	if err := a.Shutdown(ctx); err != nil {
+	if err := a.Shutdown(ctx); err != nil && !a.BrokenStore {
 		t.Errorf("shutdown app: %v", err)
 	}
 }

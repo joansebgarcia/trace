@@ -8,6 +8,7 @@ import "sync"
 type Hub struct {
 	mu          sync.Mutex
 	subscribers map[chan struct{}]struct{}
+	closed      bool
 }
 
 func New() *Hub {
@@ -17,12 +18,17 @@ func New() *Hub {
 // Subscribe returns a channel that receives a value after commits to data.db,
 // and a function that ends the subscription. Notifications that arrive while
 // one is still unread merge into it, so a slow subscriber never blocks a
-// writer and must re-read what it shows after each value.
+// writer and must re-read what it shows after each value. The channel is
+// closed when the hub closes.
 func (h *Hub) Subscribe() (<-chan struct{}, func()) {
 	c := make(chan struct{}, 1)
 
 	h.mu.Lock()
-	h.subscribers[c] = struct{}{}
+	if h.closed {
+		close(c)
+	} else {
+		h.subscribers[c] = struct{}{}
+	}
 	h.mu.Unlock()
 
 	var once sync.Once
@@ -46,4 +52,20 @@ func (h *Hub) Publish() {
 		default:
 		}
 	}
+}
+
+// Close ends every subscription by closing its channel. Later subscriptions
+// receive a closed channel and later publishes do nothing.
+func (h *Hub) Close() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.closed {
+		return
+	}
+	h.closed = true
+	for c := range h.subscribers {
+		close(c)
+	}
+	clear(h.subscribers)
 }

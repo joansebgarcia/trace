@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"sync/atomic"
 )
 
 type statusRecorder struct {
@@ -17,12 +18,24 @@ func (s *statusRecorder) WriteHeader(status int) {
 	s.ResponseWriter.WriteHeader(status)
 }
 
-// NewRouter serves the HTTP API. ping reports whether the instance is healthy.
-func NewRouter(logger *slog.Logger, ping func(context.Context) error) http.Handler {
+// NewRouter serves the HTTP API. ping reports whether the instance is
+// healthy; once stopping is set, every request gets 503 shutting_down.
+func NewRouter(logger *slog.Logger, ping func(context.Context) error, stopping *atomic.Bool) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", serveHealth(logger, ping))
 
-	return logRequests(logger, mux)
+	return logRequests(logger, rejectWhileStopping(stopping, mux))
+}
+
+func rejectWhileStopping(stopping *atomic.Bool, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if stopping.Load() {
+			w.Header().Set("Connection", "close")
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "shutting_down"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func serveHealth(logger *slog.Logger, ping func(context.Context) error) http.HandlerFunc {
