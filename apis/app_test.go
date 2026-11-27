@@ -18,8 +18,9 @@ type App struct {
 	// DataDir is the data directory of the app.
 	DataDir string
 	// URL is the base URL of the HTTP API, such as "http://127.0.0.1:54321".
-	URL    string
-	Client *http.Client
+	URL     string
+	Client  *http.Client
+	stopped bool
 }
 
 // Option changes the config of an app before it starts.
@@ -55,20 +56,37 @@ func StartApp(t testing.TB, dir string, options ...Option) (*App, error) {
 		return nil, err
 	}
 
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-		if err := server.Shutdown(ctx); err != nil {
-			t.Errorf("shutdown app: %v", err)
-		}
-	})
-
-	return &App{
+	app := &App{
 		Server:  server,
 		DataDir: dir,
 		URL:     "http://" + server.Addr(),
 		Client:  &http.Client{Timeout: timeout},
-	}, nil
+	}
+	t.Cleanup(func() {
+		if !app.stopped {
+			app.Stop(t)
+		}
+	})
+
+	return app, nil
+}
+
+// Stop shuts the app down before the test ends, such as to start another one
+// over the same data directory.
+func (a *App) Stop(t testing.TB) {
+	t.Helper()
+
+	a.stopped = true
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := a.Shutdown(ctx); err != nil {
+		t.Errorf("shutdown app: %v", err)
+	}
+}
+
+// WithProcess makes the app process queued Events with process.
+func WithProcess(process func(ctx context.Context, data *store.DB, event []byte) error) Option {
+	return func(c *apis.Config) { c.Process = process }
 }
 
 // WithMigrations makes the app apply migrations instead of the ones built

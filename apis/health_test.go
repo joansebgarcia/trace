@@ -40,6 +40,20 @@ func TestHealth(t *testing.T) {
 			ExpectedBody:   `{"status":"unavailable"}`,
 		},
 		{
+			Name:   "stopped queue writer returns unavailable",
+			Method: http.MethodGet,
+			Path:   "/api/health",
+			NewApp: func(t testing.TB) *App {
+				app := NewApp(t)
+				if err := app.Queue().Close(t.Context()); err != nil {
+					t.Fatalf("stop queue: %v", err)
+				}
+				return app
+			},
+			ExpectedStatus: http.StatusServiceUnavailable,
+			ExpectedBody:   `{"status":"unavailable"}`,
+		},
+		{
 			Name:           "other methods are not allowed",
 			Method:         http.MethodPost,
 			Path:           "/api/health",

@@ -1,11 +1,10 @@
 package apis
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
-
-	"github.com/joansebgarcia/amber/store"
 )
 
 type statusRecorder struct {
@@ -18,16 +17,17 @@ func (s *statusRecorder) WriteHeader(status int) {
 	s.ResponseWriter.WriteHeader(status)
 }
 
-func NewRouter(logger *slog.Logger, st *store.Store) http.Handler {
+// NewRouter serves the HTTP API. ping reports whether the instance is healthy.
+func NewRouter(logger *slog.Logger, ping func(context.Context) error) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", serveHealth(logger, st))
+	mux.HandleFunc("GET /api/health", serveHealth(logger, ping))
 
 	return logRequests(logger, mux)
 }
 
-func serveHealth(logger *slog.Logger, st *store.Store) http.HandlerFunc {
+func serveHealth(logger *slog.Logger, ping func(context.Context) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if err := st.Ping(r.Context()); err != nil {
+		if err := ping(r.Context()); err != nil {
 			logger.Warn("health check failed", "err", err)
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
 			return
