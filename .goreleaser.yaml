@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+#
+# A tag vX.Y.Z on main runs this config from .github/workflows/release.yml.
+# Check it locally with: goreleaser release --snapshot --clean
+version: 2
+
+project_name: trace
+
+before:
+  hooks:
+    # The Vite build in web/build/, which the ui tag embeds.
+    - make web-build
+
+builds:
+  - id: trace
+    main: .
+    binary: trace
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    tags: [ui]
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - id: trace
+    ids: [trace]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+# X.Y and latest point at the newest stable release, so a pre-release such as
+# v1.3.0-rc.1 only publishes its own tag.
+dockers_v2:
+  - id: trace
+    ids: [trace]
+    images:
+      - ghcr.io/joansebgarcia/trace
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}{{ .Major }}.{{ .Minor }}{{ end }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.source: "{{ .GitURL }}"
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs(\\(.+\\))?!?:"
+      - "^test(\\(.+\\))?!?:"
+  groups:
+    - title: Breaking changes
+      regexp: '^\w+(\(.+\))?!:'
+      order: 0
+    - title: Features
+      regexp: '^feat(\(.+\))?:'
+      order: 1
+    - title: Fixes
+      regexp: '^fix(\(.+\))?:'
+      order: 2
+    - title: Performance
+      regexp: '^perf(\(.+\))?:'
+      order: 3
+    - title: Others
+      order: 999
+
+release:
+  prerelease: auto

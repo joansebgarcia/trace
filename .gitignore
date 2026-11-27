@@ -44,3 +44,6 @@ node_modules/
 
 # Vite output, embedded by builds with the ui tag
 /web/build/
+
+# GoReleaser output
+/dist/
