@@ -3,14 +3,20 @@ package apis
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"path"
 	"strings"
 	"sync/atomic"
 
 	"github.com/joansebgarcia/amber/queue"
 )
+
+// assetsPrefix starts the path of every asset of the UI build, the
+// build.assetsDir of Vite.
+const assetsPrefix = "/assets/"
 
 // routeBench adds the benchmark endpoint to mux. It adds nothing unless the
 // build has the bench tag, whose bench.go replaces it.
@@ -26,16 +32,80 @@ func (s *statusRecorder) WriteHeader(status int) {
 	s.ResponseWriter.WriteHeader(status)
 }
 
-// NewRouter serves the HTTP API. ping reports whether the instance is
-// healthy; once stopping is set, every request gets 503 shutting_down.
-// Requests from proxies resolve their client through the forwarding headers.
-// Builds with the bench tag also serve a benchmark endpoint that enqueues on q.
-func NewRouter(logger *slog.Logger, proxies []netip.Prefix, ping func(context.Context) error, stopping *atomic.Bool, q *queue.Queue) http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/health", serveHealth(logger, ping))
-	routeBench(mux, q)
+// notFoundWriter replaces a 404 response with the JSON not_found error and
+// passes any other response through.
+type notFoundWriter struct {
+	http.ResponseWriter
+	// replaced is set once the JSON error is written, so the plain-text
+	// body that follows is dropped.
+	replaced bool
+}
 
-	return logRequests(logger, proxies, rejectWhileStopping(stopping, mux))
+func (n *notFoundWriter) WriteHeader(status int) {
+	if status != http.StatusNotFound {
+		n.ResponseWriter.WriteHeader(status)
+		return
+	}
+	n.replaced = true
+	writeJSON(n.ResponseWriter, http.StatusNotFound, map[string]string{"error": "not_found"})
+}
+
+func (n *notFoundWriter) Write(p []byte) (int, error) {
+	if n.replaced {
+		return len(p), nil
+	}
+	return n.ResponseWriter.Write(p)
+}
+
+// NewRouter serves the HTTP API under /api/ and the web UI in ui everywhere
+// else. ping reports whether the instance is healthy; once stopping is set,
+// every request gets 503 shutting_down. Requests from proxies resolve their
+// client through the forwarding headers. Builds with the bench tag also serve
+// a benchmark endpoint that enqueues on q.
+func NewRouter(logger *slog.Logger, proxies []netip.Prefix, ping func(context.Context) error, stopping *atomic.Bool, q *queue.Queue, ui fs.FS) http.Handler {
+	api := http.NewServeMux()
+	api.HandleFunc("GET /api/health", serveHealth(logger, ping))
+	routeBench(api, q)
+
+	routes := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			serveAPI(api, w, r)
+			return
+		}
+		serveUI(ui, w, r)
+	})
+
+	return logRequests(logger, proxies, rejectWhileStopping(stopping, routes))
+}
+
+// serveAPI serves r with api, answering a JSON not_found error when no route
+// matches the path. Other responses of api itself, such as 405, stay as they
+// are.
+func serveAPI(api *http.ServeMux, w http.ResponseWriter, r *http.Request) {
+	if _, pattern := api.Handler(r); pattern == "" {
+		w = &notFoundWriter{ResponseWriter: w}
+	}
+	api.ServeHTTP(w, r)
+}
+
+// serveUI serves the file of ui at the path of r. Other paths get
+// index.html, so the client-side router of the UI resolves them, except
+// under assetsPrefix: a missing asset, such as a chunk of an older build,
+// gets 404 rather than HTML the browser would fail to run.
+func serveUI(ui fs.FS, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+	switch name := strings.TrimPrefix(path.Clean(r.URL.Path), "/"); {
+	case isFile(ui, name):
+		http.FileServerFS(ui).ServeHTTP(w, r)
+	case strings.HasPrefix(r.URL.Path, assetsPrefix):
+		http.NotFound(w, r)
+	default:
+		http.ServeFileFS(w, r, ui, "index.html")
+	}
 }
 
 func rejectWhileStopping(stopping *atomic.Bool, next http.Handler) http.Handler {
@@ -137,6 +207,12 @@ func parseAddr(hostport string) netip.Addr {
 		return netip.Addr{}
 	}
 	return addrPort.Addr().Unmap()
+}
+
+// isFile reports whether name is a regular file in fsys.
+func isFile(fsys fs.FS, name string) bool {
+	info, err := fs.Stat(fsys, name)
+	return err == nil && info.Mode().IsRegular()
 }
 
 func isProxy(ip netip.Addr, proxies []netip.Prefix) bool {

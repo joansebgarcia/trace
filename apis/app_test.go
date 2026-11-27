@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/netip"
@@ -173,4 +174,10 @@ func WithTrustedProxies(t testing.TB, proxies ...string) Option {
 		prefixes = append(prefixes, prefix)
 	}
 	return func(c *apis.Config) { c.TrustedProxies = prefixes }
+}
+
+// WithUI makes the app serve ui as the web UI instead of the one built into
+// the binary.
+func WithUI(ui fs.FS) Option {
+	return func(c *apis.Config) { c.UI = ui }
 }

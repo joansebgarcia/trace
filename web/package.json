@@ -1,0 +1,27 @@
+{
+  "name": "@amber/web",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": "^24.15.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@solidjs/web": "^2.0.4",
+    "solid-js": "^2.0.4"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^10.0.0",
+    "@solidjs/vite-plugin": "^3.0.1",
+    "eslint": "^10.15.0",
+    "eslint-plugin-solid": "~0.20.1",
+    "jiti": "^2.7.0",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.8"
+  }
+}

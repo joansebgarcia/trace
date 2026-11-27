@@ -3,6 +3,8 @@ package cmd_test
 import (
 	"strings"
 	"testing"
+
+	"github.com/joansebgarcia/amber/web"
 )
 
 func TestVersion(t *testing.T) {
@@ -13,5 +15,12 @@ func TestVersion(t *testing.T) {
 
 	if !strings.Contains(out, "1.2.3") {
 		t.Errorf("output = %q, want it to contain the version 1.2.3", out)
+	}
+	want := "without the web UI"
+	if web.Embedded {
+		want = "with the web UI embedded"
+	}
+	if !strings.Contains(out, want) {
+		t.Errorf("output = %q, want it to contain %q", out, want)
 	}
 }

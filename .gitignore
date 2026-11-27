@@ -38,3 +38,9 @@ go.work.sum
 
 # Default data directory of amber serve
 /amber_data/
+
+# JS dependencies
+node_modules/
+
+# Vite output, embedded by builds with the ui tag
+/web/build/
