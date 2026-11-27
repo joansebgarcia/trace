@@ -1,0 +1,9 @@
+packages:
+  - web
+  - sdks/js/*
+
+peerDependencyRules:
+  allowedVersions:
+    # The solid option of @antfu/eslint-config pins Solid 1 rules; web/ adds
+    # the Solid 2 config of a newer eslint-plugin-solid by hand (ADR 0003).
+    '@antfu/eslint-config>eslint-plugin-solid': '0.20'

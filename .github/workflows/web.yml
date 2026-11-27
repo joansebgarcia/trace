@@ -1,0 +1,51 @@
+name: web
+
+# The web UI and the binary that embeds it. Changes to the protocol contract
+# in docs/protocol/ trigger every workflow.
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - web/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - tsconfig.base.json
+      - Makefile
+      # Go changes can break the build with the ui tag, which only this
+      # workflow builds.
+      - "**.go"
+      - go.mod
+      - go.sum
+      - docs/protocol/**
+      - .github/workflows/web.yml
+  pull_request:
+    paths: *paths
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: pnpm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: make web-lint
+      - run: make web-test
+      - run: make build
+      - name: Check that GET / serves the embedded UI
+        run: |
+          bin/amber serve --http=127.0.0.1:8090 --dir="$RUNNER_TEMP/data" &
+          curl -fsS --retry 20 --retry-connrefused --retry-delay 1 http://127.0.0.1:8090/api/health
+          curl -fsS http://127.0.0.1:8090/ | grep -F '<div id="app">'
+          curl -fsS http://127.0.0.1:8090/issues/123 | grep -F '<div id="app">'
+          curl -sS http://127.0.0.1:8090/api/missing | grep -F '{"error":"not_found"}'
+          bin/amber --version | grep -F "with the web UI embedded"
