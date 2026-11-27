@@ -4,7 +4,7 @@ The benchmark verifies the assumption of [ADR 0001](adr/0001-sqlite-single-proce
 
 ## How it runs
 
-`make bench` builds `bin/amber-bench` with the `bench` build tag, starts `amber serve` on a free port over a temporary data directory, and runs the load generator in [`bench/`](../bench) against it.
+`make bench` builds `bin/trace-bench` with the `bench` build tag, starts `trace serve` on a free port over a temporary data directory, and runs the load generator in [`bench/`](../bench) against it.
 
 - The `bench` tag adds `POST /api/bench/events`, which enqueues the request body as one Event and answers `202` after the group commit to `ingest.db`. Release builds (`make build`) leave the tag out, so the endpoint does not exist there.
 - The load is open-loop: Events go out at a fixed rate (500/s by default) whatever the server does, and each latency counts from the moment its request was due. A slow server cannot slow the load and hide its own latency.

@@ -36,8 +36,8 @@ go.work.sum
 # Build output
 /bin/
 
-# Default data directory of amber serve
-/amber_data/
+# Default data directory of trace serve
+/trace_data/
 
 # JS dependencies
 node_modules/

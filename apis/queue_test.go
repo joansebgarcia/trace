@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/joansebgarcia/amber/migrations"
-	"github.com/joansebgarcia/amber/store"
+	"github.com/joansebgarcia/trace/migrations"
+	"github.com/joansebgarcia/trace/store"
 )
 
 func TestEnqueuedEventsReachDataAndLeaveTheQueue(t *testing.T) {

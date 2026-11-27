@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/joansebgarcia/amber/cmd"
+	"github.com/joansebgarcia/trace/cmd"
 )
 
 func TestServeHTTPPrecedence(t *testing.T) {
@@ -34,7 +34,7 @@ func TestServeDirPrecedence(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		serveHealthy(t)
 
-		assertLocked(t, "amber_data")
+		assertLocked(t, "trace_data")
 	})
 
 	t.Run("env over default", func(t *testing.T) {

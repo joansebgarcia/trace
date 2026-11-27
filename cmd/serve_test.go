@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/joansebgarcia/amber/store"
+	"github.com/joansebgarcia/trace/store"
 )
 
 func TestServeAnswersHealth(t *testing.T) {
@@ -28,8 +28,8 @@ func TestServeDirDefault(t *testing.T) {
 		t.Fatalf("execute: %v", err)
 	}
 
-	if !strings.Contains(out, `"./amber_data"`) {
-		t.Errorf("help does not show the default --dir ./amber_data:\n%s", out)
+	if !strings.Contains(out, `"./trace_data"`) {
+		t.Errorf("help does not show the default --dir ./trace_data:\n%s", out)
 	}
 }
 

@@ -1,4 +1,4 @@
-# Amber
+# Trace
 
 Self-hosted engine for capturing, grouping and diagnosing application errors in real time.
 
@@ -15,7 +15,7 @@ A timestamped record of something that happened in the host application before a
 _Avoid_: Trail, log line
 
 **SDK**:
-A client library embedded in a host application that captures Events and sends them to an Amber server.
+A client library embedded in a host application that captures Events and sends them to an Trace server.
 _Avoid_: Client, agent, tracker
 
 **Release**:
@@ -25,7 +25,7 @@ _Avoid_: Build, deploy, version (alone)
 **Environment**:
 The deployment stage of the host application where an Event occurred, such as production or staging.
 _Avoid_: Stage, env, tier
-_Not this concept_: an env variable (an operating-system environment variable, such as `AMBER_HTTP`); "env" is fine in code and docs with that technical meaning.
+_Not this concept_: an env variable (an operating-system environment variable, such as `TRACE_HTTP`); "env" is fine in code and docs with that technical meaning.
 
 **User**:
 A person using the host application, identified by an opaque id that the application assigns.
@@ -46,7 +46,7 @@ The value computed from an Event that decides which Issue it belongs to.
 _Avoid_: Fingerprint, hash, signature
 
 **Custom Group Key**:
-A Group Key supplied by the SDK for an Event, replacing the one Amber would compute.
+A Group Key supplied by the SDK for an Event, replacing the one Trace would compute.
 _Avoid_: Custom fingerprint, override hash
 
 **In-app frame**:
@@ -60,17 +60,17 @@ _Avoid_: Reopen, recurrence, relapse
 ### Tenancy
 
 **Project**:
-An application or service monitored by an Amber instance; every Event and Issue belongs to exactly one Project.
+An application or service monitored by an Trace instance; every Event and Issue belongs to exactly one Project.
 _Avoid_: App, organization, tenant
 
 **Ingest Key**:
-The credential a Project's SDKs present to send Events to an Amber server.
+The credential a Project's SDKs present to send Events to an Trace server.
 _Avoid_: API key, token
 
 **Admin**:
-A person with credentials to sign in to an Amber instance's UI; every Admin has the same permissions over every Project.
+A person with credentials to sign in to an Trace instance's UI; every Admin has the same permissions over every Project.
 _Avoid_: User (reserved for the host application's end users), account, operator
 
 **Operator**:
-The person who deploys and runs an Amber instance and uses its command-line tools; a role, not an account.
+The person who deploys and runs an Trace instance and uses its command-line tools; a role, not an account.
 _Avoid_: Admin, sysadmin, owner

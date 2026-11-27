@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/joansebgarcia/amber/store"
+	"github.com/joansebgarcia/trace/store"
 )
 
 const (

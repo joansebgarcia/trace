@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/joansebgarcia/amber/queue"
+	"github.com/joansebgarcia/trace/queue"
 )
 
 // assetsPrefix starts the path of every asset of the UI build, the

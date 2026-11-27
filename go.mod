@@ -1,4 +1,4 @@
-module github.com/joansebgarcia/amber
+module github.com/joansebgarcia/trace
 
 go 1.26.0
 

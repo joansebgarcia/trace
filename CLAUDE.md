@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues tracked in GitHub Issues (`joansebgarcia/amber`) via `gh`. See `docs/agents/issue-tracker.md`.
+Issues tracked in GitHub Issues (`joansebgarcia/trace`) via `gh`. See `docs/agents/issue-tracker.md`.
 
 ### Domain docs
 

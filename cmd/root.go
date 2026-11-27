@@ -9,12 +9,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/joansebgarcia/amber/web"
+	"github.com/joansebgarcia/trace/web"
 )
 
 // binary is the product name, used for the binary and the env prefix. It is
 // the only place the name appears, so renaming the product is one edit.
-const binary = "amber"
+const binary = "trace"
 
 // EnvPrefix starts the name of the env variable behind every flag.
 var EnvPrefix = strings.ToUpper(binary) + "_"
@@ -23,7 +23,7 @@ var EnvPrefix = strings.ToUpper(binary) + "_"
 // with whether the binary embeds the web UI.
 //
 // Every flag of every command can also be set with an env variable named
-// after it (--log-level → AMBER_LOG_LEVEL). A flag on the command line wins
+// after it (--log-level → TRACE_LOG_LEVEL). A flag on the command line wins
 // over its env variable, which wins over the default. An empty env variable
 // counts as unset.
 func NewRoot(version string) *cobra.Command {

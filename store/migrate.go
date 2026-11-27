@@ -113,7 +113,7 @@ func (p *plan) check(ctx context.Context) error {
 		return fmt.Errorf("read %s schema version: %w", p.name, err)
 	}
 	if to := len(p.migrations); from > to {
-		return fmt.Errorf("%s schema version %d is newer than this binary supports (%d): run a newer amber", p.name, from, to)
+		return fmt.Errorf("%s schema version %d is newer than this binary supports (%d): run a newer trace", p.name, from, to)
 	}
 	p.from = from
 

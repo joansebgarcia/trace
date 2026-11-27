@@ -1,6 +1,6 @@
 # Formatos de stack trace JS y normalización
 
-Ticket: joansebgarcia/amber#5 (mapa #1). Fecha: 2026-11-24.
+Ticket: joansebgarcia/trace#5 (mapa #1). Fecha: 2026-11-24.
 
 **Pregunta.** ¿Cómo se ven los stack traces de V8 (Node, Chrome), SpiderMonkey (Firefox) y JavaScriptCore (Safari), incluyendo async frames, `eval` y código minificado? ¿Qué librerías o técnicas existen para parsearlos a frames estructurados (`file`, `function`, `line`, `column`) y cómo distinguir frames in-app de `node_modules`/vendors?
 

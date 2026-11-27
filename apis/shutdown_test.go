@@ -15,8 +15,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/joansebgarcia/amber/apis"
-	"github.com/joansebgarcia/amber/store"
+	"github.com/joansebgarcia/trace/apis"
+	"github.com/joansebgarcia/trace/store"
 )
 
 func TestRequestsDuringShutdownReturnShuttingDown(t *testing.T) {

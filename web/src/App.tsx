@@ -1,7 +1,7 @@
 export function App() {
   return (
     <main>
-      <h1>Amber UI</h1>
+      <h1>Trace UI</h1>
     </main>
   )
 }

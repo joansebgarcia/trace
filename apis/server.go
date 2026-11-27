@@ -12,11 +12,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/joansebgarcia/amber/hub"
-	"github.com/joansebgarcia/amber/migrations"
-	"github.com/joansebgarcia/amber/queue"
-	"github.com/joansebgarcia/amber/store"
-	"github.com/joansebgarcia/amber/web"
+	"github.com/joansebgarcia/trace/hub"
+	"github.com/joansebgarcia/trace/migrations"
+	"github.com/joansebgarcia/trace/queue"
+	"github.com/joansebgarcia/trace/store"
+	"github.com/joansebgarcia/trace/web"
 )
 
 const readHeaderTimeout = 10 * time.Second
