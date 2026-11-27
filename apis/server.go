@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"sync/atomic"
 	"time"
 
@@ -29,6 +30,10 @@ type Config struct {
 	// Process commits a queued Event to data.db, idempotently by Project
 	// and event_id. Nil leaves Events in the queue.
 	Process func(ctx context.Context, data *store.DB, event []byte) error
+	// TrustedProxies are the CIDRs of the reverse proxies whose
+	// X-Forwarded-For and X-Forwarded-Proto headers resolve the IP and
+	// scheme of the client. Empty ignores those headers.
+	TrustedProxies []netip.Prefix
 	// Logger receives the server logs. Nil discards them.
 	Logger *slog.Logger
 }
@@ -96,7 +101,7 @@ func (s *Server) Start() error {
 	s.hub = h
 	s.listener = listener
 	s.server = &http.Server{
-		Handler:           NewRouter(s.logger, s.ping, &s.stopping),
+		Handler:           NewRouter(s.logger, s.config.TrustedProxies, s.ping, &s.stopping),
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 	s.logger.Info("http server listening", "addr", s.Addr())
