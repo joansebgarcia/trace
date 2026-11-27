@@ -1,0 +1,48 @@
+name: bench
+
+# The benchmark is an acceptance criterion of ADR 0001, not a CI test: it
+# runs only on demand.
+on:
+  workflow_dispatch:
+    inputs:
+      flags:
+        description: Flags for the load generator (go run ./bench -h)
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # The whole benchmark, server and load generator, runs as the runner
+      # user in a scope of 2 vCPU and 4 GB with no swap, the size ADR 0001
+      # assumes. The generator sharing those CPUs makes the result
+      # pessimistic. sudo is needed only to create the scope; the generator
+      # signals the server directly.
+      - name: Run benchmark
+        env:
+          BENCH_FLAGS: ${{ inputs.flags }}
+        run: |
+          set -o pipefail
+          echo "runner: $(nproc) vCPU, $(free -g | awk '/^Mem:/ {print $2}') GB"
+          last=$(( $(nproc) - 1 ))
+          sudo systemd-run --quiet --scope \
+            --uid="$(id -u)" --gid="$(id -g)" \
+            -p MemoryMax=4G -p MemorySwapMax=0 -p AllowedCPUs="0-$(( last < 1 ? last : 1 ))" \
+            env PATH="$PATH" HOME="$HOME" BENCH_FLAGS="$BENCH_FLAGS" \
+            make -s bench | tee bench.md
+      - name: Publish result
+        if: always()
+        run: cat bench.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench
+          path: bench.md

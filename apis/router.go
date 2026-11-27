@@ -8,7 +8,13 @@ import (
 	"net/netip"
 	"strings"
 	"sync/atomic"
+
+	"github.com/joansebgarcia/amber/queue"
 )
+
+// routeBench adds the benchmark endpoint to mux. It adds nothing unless the
+// build has the bench tag, whose bench.go replaces it.
+var routeBench = func(*http.ServeMux, *queue.Queue) {}
 
 type statusRecorder struct {
 	http.ResponseWriter
@@ -23,9 +29,11 @@ func (s *statusRecorder) WriteHeader(status int) {
 // NewRouter serves the HTTP API. ping reports whether the instance is
 // healthy; once stopping is set, every request gets 503 shutting_down.
 // Requests from proxies resolve their client through the forwarding headers.
-func NewRouter(logger *slog.Logger, proxies []netip.Prefix, ping func(context.Context) error, stopping *atomic.Bool) http.Handler {
+// Builds with the bench tag also serve a benchmark endpoint that enqueues on q.
+func NewRouter(logger *slog.Logger, proxies []netip.Prefix, ping func(context.Context) error, stopping *atomic.Bool, q *queue.Queue) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", serveHealth(logger, ping))
+	routeBench(mux, q)
 
 	return logRequests(logger, proxies, rejectWhileStopping(stopping, mux))
 }

@@ -101,7 +101,7 @@ func (s *Server) Start() error {
 	s.hub = h
 	s.listener = listener
 	s.server = &http.Server{
-		Handler:           NewRouter(s.logger, s.config.TrustedProxies, s.ping, &s.stopping),
+		Handler:           NewRouter(s.logger, s.config.TrustedProxies, s.ping, &s.stopping, q),
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 	s.logger.Info("http server listening", "addr", s.Addr())
