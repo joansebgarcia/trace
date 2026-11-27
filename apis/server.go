@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"github.com/joansebgarcia/amber/migrations"
 	"github.com/joansebgarcia/amber/queue"
 	"github.com/joansebgarcia/amber/store"
+	"github.com/joansebgarcia/amber/web"
 )
 
 const readHeaderTimeout = 10 * time.Second
@@ -34,6 +36,10 @@ type Config struct {
 	// X-Forwarded-For and X-Forwarded-Proto headers resolve the IP and
 	// scheme of the client. Empty ignores those headers.
 	TrustedProxies []netip.Prefix
+	// UI holds the files of the web UI, served outside /api/. Nil uses the
+	// ones built into the binary: the real UI with the ui tag, a placeholder
+	// page without it.
+	UI fs.FS
 	// Logger receives the server logs. Nil discards them.
 	Logger *slog.Logger
 }
@@ -100,8 +106,12 @@ func (s *Server) Start() error {
 	s.queue = q
 	s.hub = h
 	s.listener = listener
+	ui := s.config.UI
+	if ui == nil {
+		ui = web.FS
+	}
 	s.server = &http.Server{
-		Handler:           NewRouter(s.logger, s.config.TrustedProxies, s.ping, &s.stopping, q),
+		Handler:           NewRouter(s.logger, s.config.TrustedProxies, s.ping, &s.stopping, q, ui),
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 	s.logger.Info("http server listening", "addr", s.Addr())

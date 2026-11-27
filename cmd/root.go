@@ -8,6 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"github.com/joansebgarcia/amber/web"
 )
 
 // binary is the product name, used for the binary and the env prefix. It is
@@ -17,7 +19,8 @@ const binary = "amber"
 // EnvPrefix starts the name of the env variable behind every flag.
 var EnvPrefix = strings.ToUpper(binary) + "_"
 
-// NewRoot returns the root command, reporting version on --version.
+// NewRoot returns the root command, reporting version on --version along
+// with whether the binary embeds the web UI.
 //
 // Every flag of every command can also be set with an env variable named
 // after it (--log-level → AMBER_LOG_LEVEL). A flag on the command line wins
@@ -31,7 +34,7 @@ func NewRoot(version string) *cobra.Command {
 	root := &cobra.Command{
 		Use:           binary,
 		Short:         "Self-hosted engine for capturing, grouping and diagnosing application errors",
-		Version:       version,
+		Version:       formatVersion(version),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
@@ -48,6 +51,13 @@ func NewRoot(version string) *cobra.Command {
 	}
 
 	return root
+}
+
+func formatVersion(version string) string {
+	if web.Embedded {
+		return version + " (with the web UI embedded)"
+	}
+	return version + " (without the web UI)"
 }
 
 func applyEnv(flags *pflag.FlagSet) error {
