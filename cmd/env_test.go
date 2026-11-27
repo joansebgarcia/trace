@@ -117,6 +117,43 @@ func TestServeShutdownTimeoutPrecedence(t *testing.T) {
 	}
 }
 
+func TestServeTrustedProxiesPrecedence(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+		args []string
+		want string
+	}{
+		{name: "default", want: "trusted_proxies=[]"},
+		{name: "env over default", env: "10.0.0.0/8,192.168.0.0/16", want: "trusted_proxies=\"[10.0.0.0/8 192.168.0.0/16]\""},
+		{name: "flag over env", env: "10.0.0.0/8", args: []string{"--trusted-proxies=172.16.0.0/12"}, want: "trusted_proxies=[172.16.0.0/12]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != "" {
+				t.Setenv(cmd.EnvPrefix+"TRUSTED_PROXIES", tt.env)
+			}
+
+			if out := serveHealthy(t, tt.args...)(); !strings.Contains(out, tt.want) {
+				t.Errorf("startup log does not report %s:\n%s", tt.want, out)
+			}
+		})
+	}
+}
+
+func TestServeRejectsInvalidTrustedProxies(t *testing.T) {
+	for _, proxy := range []string{"10.0.0.1", "10.0.0.0/33", "proxy"} {
+		t.Run(proxy, func(t *testing.T) {
+			_, err := execute("serve", "--http="+findFreeAddr(t), "--trusted-proxies="+proxy)
+
+			if err == nil || !strings.Contains(err.Error(), proxy) {
+				t.Errorf("error = %v, want one naming %q", err, proxy)
+			}
+		})
+	}
+}
+
 func TestServeRejectsInvalidEnv(t *testing.T) {
 	t.Setenv(cmd.EnvPrefix+"SHUTDOWN_TIMEOUT", "soon")
 
@@ -133,7 +170,7 @@ func TestServeHelpNamesEnv(t *testing.T) {
 		t.Fatalf("execute: %v", err)
 	}
 
-	for _, name := range []string{"DIR", "HTTP", "LOG_FORMAT", "LOG_LEVEL", "SHUTDOWN_TIMEOUT"} {
+	for _, name := range []string{"DIR", "HTTP", "LOG_FORMAT", "LOG_LEVEL", "SHUTDOWN_TIMEOUT", "TRUSTED_PROXIES"} {
 		if env := cmd.EnvPrefix + name; !strings.Contains(out, env) {
 			t.Errorf("help does not name %s:\n%s", env, out)
 		}

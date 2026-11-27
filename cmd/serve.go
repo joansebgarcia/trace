@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"net/netip"
 	"os"
 	"os/signal"
 	"slices"
@@ -39,9 +40,10 @@ var logLevels = map[string]slog.Level{
 
 func newServe() *cobra.Command {
 	var (
-		config    apis.Config
-		logFormat string
-		logLevel  string
+		config         apis.Config
+		logFormat      string
+		logLevel       string
+		trustedProxies []string
 	)
 
 	serve := &cobra.Command{
@@ -53,6 +55,9 @@ func newServe() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if config.TrustedProxies, err = parseProxies(trustedProxies); err != nil {
+				return err
+			}
 			config.Logger = logger
 			logger.Info("starting",
 				"version", cmd.Root().Version,
@@ -61,6 +66,7 @@ func newServe() *cobra.Command {
 				"log_format", logFormat,
 				"log_level", logLevel,
 				"shutdown_timeout", config.ShutdownTimeout.String(),
+				"trusted_proxies", config.TrustedProxies,
 			)
 
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
@@ -76,6 +82,7 @@ func newServe() *cobra.Command {
 	flags.StringVar(&logFormat, "log-format", defaultLogFormat, "log format: "+listLogFormats())
 	flags.StringVar(&logLevel, "log-level", defaultLogLevel, "minimum log level: "+listLogLevels())
 	flags.DurationVar(&config.ShutdownTimeout, "shutdown-timeout", defaultShutdownTimeout, "maximum time to wait for a graceful shutdown")
+	flags.StringSliceVar(&trustedProxies, "trusted-proxies", nil, "comma-separated CIDRs of the reverse proxies whose X-Forwarded-For and X-Forwarded-Proto headers are trusted")
 
 	return serve
 }
@@ -92,6 +99,18 @@ func newLogger(w io.Writer, format, level string) (*slog.Logger, error) {
 	}
 
 	return slog.New(handler(w, &slog.HandlerOptions{Level: minLevel})), nil
+}
+
+func parseProxies(cidrs []string) ([]netip.Prefix, error) {
+	proxies := make([]netip.Prefix, 0, len(cidrs))
+	for _, cidr := range cidrs {
+		proxy, err := netip.ParsePrefix(strings.TrimSpace(cidr))
+		if err != nil {
+			return nil, fmt.Errorf("invalid trusted proxy %q: use a CIDR such as 10.0.0.0/8", cidr)
+		}
+		proxies = append(proxies, proxy.Masked())
+	}
+	return proxies, nil
 }
 
 func listLogFormats() string {
