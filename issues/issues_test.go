@@ -114,7 +114,7 @@ func newEvent(id, errType, message string) event.Event {
 	inApp, dependency := true, false
 	return event.Event{
 		EventID:   id,
-		Timestamp: time.Date(2026, 11, 27, 10, 0, 0, 0, time.UTC),
+		Timestamp: "2026-11-27T10:00:00.000Z",
 		Platform:  "javascript",
 		SDK:       event.SDK{Name: "trace-js", Version: "0.1.0"},
 		Exceptions: []event.Exception{{

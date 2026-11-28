@@ -1,0 +1,44 @@
+{
+  "description": "Unknown fields are ignored at every level, so v1 grows additively",
+  "body": {
+    "events": [
+      {
+        "event_id": "0190b7a4-7c1e-7000-8000-000000000001",
+        "timestamp": "2026-11-27T10:00:00.000Z",
+        "platform": "javascript",
+        "sdk": {
+          "name": "trace-js",
+          "version": "0.1.0",
+          "integrations": [
+            "browser"
+          ]
+        },
+        "exceptions": [
+          {
+            "type": "TypeError",
+            "message": "x is undefined",
+            "frames": [
+              {
+                "function": "handler0",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 10,
+                "colno": 5,
+                "in_app": true,
+                "module_hint": "checkout"
+              }
+            ],
+            "cause_hint": 1
+          }
+        ],
+        "user": {
+          "id": "42",
+          "segment": "beta"
+        },
+        "fingerprint_v2": {
+          "any": "shape"
+        },
+        "sampled": true
+      }
+    ]
+  }
+}

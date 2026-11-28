@@ -1,0 +1,28 @@
+{
+  "description": "Field names are case-sensitive: a case variant of a known field is an unknown field, so it is ignored",
+  "body": {
+    "events": [
+      {
+        "event_id": "0190b7a4-7c1e-7000-8000-000000000001",
+        "timestamp": "2026-11-27T10:00:00.000Z",
+        "platform": "javascript",
+        "sdk": {
+          "name": "trace-js",
+          "version": "0.1.0",
+          "Name": 1
+        },
+        "exceptions": [
+          {
+            "type": "TypeError",
+            "message": "x is undefined",
+            "Type": 7,
+            "FRAMES": "x"
+          }
+        ],
+        "Level": "bogus",
+        "PLATFORM": 1,
+        "Exceptions": "x"
+      }
+    ]
+  }
+}

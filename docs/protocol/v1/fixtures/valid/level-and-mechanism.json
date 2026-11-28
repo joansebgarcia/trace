@@ -1,0 +1,78 @@
+{
+  "description": "level, handled and mechanism take each allowed value",
+  "body": {
+    "events": [
+      {
+        "event_id": "0190b7a4-7c1e-7000-8000-000000000001",
+        "timestamp": "2026-11-27T10:00:00.000Z",
+        "platform": "javascript",
+        "sdk": {
+          "name": "trace-js",
+          "version": "0.1.0"
+        },
+        "exceptions": [
+          {
+            "type": "TypeError",
+            "message": "x is undefined"
+          }
+        ],
+        "level": "fatal",
+        "handled": false,
+        "mechanism": "onerror"
+      },
+      {
+        "event_id": "0190b7a4-7c1e-7000-8000-000000000002",
+        "timestamp": "2026-11-27T10:00:00.000Z",
+        "platform": "javascript",
+        "sdk": {
+          "name": "trace-js",
+          "version": "0.1.0"
+        },
+        "exceptions": [
+          {
+            "type": "TypeError",
+            "message": "x is undefined"
+          }
+        ],
+        "level": "error",
+        "handled": false,
+        "mechanism": "unhandledrejection"
+      },
+      {
+        "event_id": "0190b7a4-7c1e-7000-8000-000000000003",
+        "timestamp": "2026-11-27T10:00:00.000Z",
+        "platform": "javascript",
+        "sdk": {
+          "name": "trace-js",
+          "version": "0.1.0"
+        },
+        "exceptions": [
+          {
+            "type": "TypeError",
+            "message": "x is undefined"
+          }
+        ],
+        "level": "warning",
+        "handled": false,
+        "mechanism": "uncaughtException"
+      },
+      {
+        "event_id": "0190b7a4-7c1e-7000-8000-000000000004",
+        "timestamp": "2026-11-27T10:00:00.000Z",
+        "platform": "javascript",
+        "sdk": {
+          "name": "trace-js",
+          "version": "0.1.0"
+        },
+        "exceptions": [
+          {
+            "type": "TypeError",
+            "message": "x is undefined"
+          }
+        ],
+        "handled": true,
+        "mechanism": "manual"
+      }
+    ]
+  }
+}

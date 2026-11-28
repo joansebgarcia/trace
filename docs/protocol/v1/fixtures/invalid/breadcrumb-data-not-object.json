@@ -1,0 +1,32 @@
+{
+  "description": "breadcrumbs[].data must be a JSON object",
+  "code": "invalid_event",
+  "index": 0,
+  "body": {
+    "events": [
+      {
+        "event_id": "0190b7a4-7c1e-7000-8000-000000000001",
+        "timestamp": "2026-11-27T10:00:00.000Z",
+        "platform": "javascript",
+        "sdk": {
+          "name": "trace-js",
+          "version": "0.1.0"
+        },
+        "exceptions": [
+          {
+            "type": "TypeError",
+            "message": "x is undefined"
+          }
+        ],
+        "breadcrumbs": [
+          {
+            "timestamp": "2026-11-27T09:59:00.000Z",
+            "type": "console",
+            "message": "step 0",
+            "data": "x"
+          }
+        ]
+      }
+    ]
+  }
+}

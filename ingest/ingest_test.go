@@ -2,11 +2,15 @@ package ingest_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +23,21 @@ import (
 	"github.com/joansgarcia/trace/store"
 )
 
-const timeout = 5 * time.Second
+const (
+	timeout = 5 * time.Second
+	// fixturesDir holds the fixtures of the protocol contract.
+	fixturesDir = "../docs/protocol/v1/fixtures"
+)
+
+// fixture is one request body of the protocol contract. An invalid one
+// carries the error code it must get and, if one Event breaks the protocol,
+// its index.
+type fixture struct {
+	Name  string          `json:"-"`
+	Body  json.RawMessage `json:"body"`
+	Code  string          `json:"code"`
+	Index *int            `json:"index"`
+}
 
 // endpoint is the ingest endpoint over a migrated data directory.
 type endpoint struct {
@@ -135,6 +153,61 @@ func TestInvalidEventRejectsTheWholeBatch(t *testing.T) {
 	}
 }
 
+func TestValidFixturesAreAccepted(t *testing.T) {
+	for _, f := range loadFixtures(t, "valid") {
+		t.Run(f.Name, func(t *testing.T) {
+			e := newEndpoint(t, false)
+			_, key := createProject(t, e)
+
+			status, body := postBody(t, e, key, string(f.Body))
+
+			if status != http.StatusAccepted {
+				t.Errorf("response = %d %s, want 202", status, body)
+			}
+		})
+	}
+}
+
+func TestInvalidFixturesAreRejectedWithTheirCode(t *testing.T) {
+	for _, f := range loadFixtures(t, "invalid") {
+		t.Run(f.Name, func(t *testing.T) {
+			e := newEndpoint(t, false)
+			_, key := createProject(t, e)
+
+			status, body := postBody(t, e, key, string(f.Body))
+
+			var got struct {
+				Error struct {
+					Code    string `json:"code"`
+					Details []struct {
+						Index int `json:"index"`
+					} `json:"details"`
+				} `json:"error"`
+			}
+			if err := json.Unmarshal([]byte(body), &got); err != nil {
+				t.Fatalf("response = %d %s, want a JSON error", status, body)
+			}
+			if status != http.StatusBadRequest || got.Error.Code != f.Code {
+				t.Errorf("response = %d %s, want 400 %s", status, body, f.Code)
+			}
+			var indexes []int
+			for _, d := range got.Error.Details {
+				indexes = append(indexes, d.Index)
+			}
+			var want []int
+			if f.Index != nil {
+				want = []int{*f.Index}
+			}
+			if !reflect.DeepEqual(indexes, want) {
+				t.Errorf("details indexes = %v, want %v; body: %s", indexes, want, body)
+			}
+			if got := e.Queue.Pending(); got != 0 {
+				t.Errorf("pending = %d, want 0", got)
+			}
+		})
+	}
+}
+
 // newEndpoint serves the ingest endpoint until the test ends. With process,
 // its queue processes Events into Issues; without it, they stay queued.
 func newEndpoint(t *testing.T, process bool) *endpoint {
@@ -185,7 +258,14 @@ func createProject(t *testing.T, e *endpoint) (projects.Project, string) {
 func postEvents(t *testing.T, e *endpoint, key string, events ...string) (int, string) {
 	t.Helper()
 
-	body := `{"events":[` + strings.Join(events, ",") + `]}`
+	return postBody(t, e, key, `{"events":[`+strings.Join(events, ",")+`]}`)
+}
+
+// postBody sends body with key, if not empty, and returns the status and
+// body of the response.
+func postBody(t *testing.T, e *endpoint, key, body string) (int, string) {
+	t.Helper()
+
 	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, e.URL, strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("build request: %v", err)
@@ -229,6 +309,29 @@ func minimalEvent(id string) string {
 		"sdk": {"name": "trace-js", "version": "0.1.0"},
 		"exceptions": [{"type": "TypeError", "message": "x is undefined"}]
 	}`, id)
+}
+
+// loadFixtures loads the fixtures of the protocol contract in kind, "valid"
+// or "invalid".
+func loadFixtures(t *testing.T, kind string) []fixture {
+	t.Helper()
+
+	paths, err := filepath.Glob(filepath.Join(fixturesDir, kind, "*.json"))
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("find %s fixtures: %v", kind, err)
+	}
+	fixtures := make([]fixture, len(paths))
+	for i, path := range paths {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read fixture: %v", err)
+		}
+		if err := json.Unmarshal(content, &fixtures[i]); err != nil {
+			t.Fatalf("decode fixture %s: %v", path, err)
+		}
+		fixtures[i].Name = strings.TrimSuffix(filepath.Base(path), ".json")
+	}
+	return fixtures
 }
 
 // openStore opens a temporary data directory with the migrations built into

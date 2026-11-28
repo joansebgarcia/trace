@@ -1,0 +1,10 @@
+{
+  "description": "each Event must be a JSON object",
+  "code": "invalid_event",
+  "index": 0,
+  "body": {
+    "events": [
+      "event"
+    ]
+  }
+}

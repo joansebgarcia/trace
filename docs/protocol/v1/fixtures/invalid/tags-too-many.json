@@ -1,0 +1,77 @@
+{
+  "description": "tags holds at most 50 tags",
+  "code": "invalid_event",
+  "index": 0,
+  "body": {
+    "events": [
+      {
+        "event_id": "0190b7a4-7c1e-7000-8000-000000000001",
+        "timestamp": "2026-11-27T10:00:00.000Z",
+        "platform": "javascript",
+        "sdk": {
+          "name": "trace-js",
+          "version": "0.1.0"
+        },
+        "exceptions": [
+          {
+            "type": "TypeError",
+            "message": "x is undefined"
+          }
+        ],
+        "tags": {
+          "tag00": "v",
+          "tag01": "v",
+          "tag02": "v",
+          "tag03": "v",
+          "tag04": "v",
+          "tag05": "v",
+          "tag06": "v",
+          "tag07": "v",
+          "tag08": "v",
+          "tag09": "v",
+          "tag10": "v",
+          "tag11": "v",
+          "tag12": "v",
+          "tag13": "v",
+          "tag14": "v",
+          "tag15": "v",
+          "tag16": "v",
+          "tag17": "v",
+          "tag18": "v",
+          "tag19": "v",
+          "tag20": "v",
+          "tag21": "v",
+          "tag22": "v",
+          "tag23": "v",
+          "tag24": "v",
+          "tag25": "v",
+          "tag26": "v",
+          "tag27": "v",
+          "tag28": "v",
+          "tag29": "v",
+          "tag30": "v",
+          "tag31": "v",
+          "tag32": "v",
+          "tag33": "v",
+          "tag34": "v",
+          "tag35": "v",
+          "tag36": "v",
+          "tag37": "v",
+          "tag38": "v",
+          "tag39": "v",
+          "tag40": "v",
+          "tag41": "v",
+          "tag42": "v",
+          "tag43": "v",
+          "tag44": "v",
+          "tag45": "v",
+          "tag46": "v",
+          "tag47": "v",
+          "tag48": "v",
+          "tag49": "v",
+          "tag50": "v"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,733 @@
+{
+  "description": "exceptions[].frames holds at most 100 frames",
+  "code": "invalid_event",
+  "index": 0,
+  "body": {
+    "events": [
+      {
+        "event_id": "0190b7a4-7c1e-7000-8000-000000000001",
+        "timestamp": "2026-11-27T10:00:00.000Z",
+        "platform": "javascript",
+        "sdk": {
+          "name": "trace-js",
+          "version": "0.1.0"
+        },
+        "exceptions": [
+          {
+            "type": "TypeError",
+            "message": "x is undefined",
+            "frames": [
+              {
+                "function": "handler0",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 10,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler1",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 11,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler2",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 12,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler3",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 13,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler4",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 14,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler5",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 15,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler6",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 16,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler7",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 17,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler8",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 18,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler9",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 19,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler10",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 20,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler11",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 21,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler12",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 22,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler13",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 23,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler14",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 24,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler15",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 25,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler16",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 26,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler17",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 27,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler18",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 28,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler19",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 29,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler20",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 30,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler21",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 31,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler22",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 32,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler23",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 33,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler24",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 34,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler25",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 35,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler26",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 36,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler27",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 37,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler28",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 38,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler29",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 39,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler30",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 40,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler31",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 41,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler32",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 42,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler33",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 43,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler34",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 44,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler35",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 45,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler36",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 46,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler37",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 47,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler38",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 48,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler39",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 49,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler40",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 50,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler41",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 51,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler42",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 52,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler43",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 53,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler44",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 54,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler45",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 55,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler46",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 56,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler47",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 57,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler48",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 58,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler49",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 59,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler50",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 60,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler51",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 61,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler52",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 62,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler53",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 63,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler54",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 64,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler55",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 65,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler56",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 66,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler57",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 67,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler58",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 68,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler59",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 69,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler60",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 70,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler61",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 71,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler62",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 72,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler63",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 73,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler64",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 74,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler65",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 75,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler66",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 76,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler67",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 77,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler68",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 78,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler69",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 79,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler70",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 80,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler71",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 81,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler72",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 82,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler73",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 83,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler74",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 84,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler75",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 85,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler76",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 86,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler77",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 87,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler78",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 88,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler79",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 89,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler80",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 90,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler81",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 91,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler82",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 92,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler83",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 93,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler84",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 94,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler85",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 95,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler86",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 96,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler87",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 97,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler88",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 98,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler89",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 99,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler90",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 100,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler91",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 101,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler92",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 102,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler93",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 103,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler94",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 104,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler95",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 105,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler96",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 106,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler97",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 107,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler98",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 108,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler99",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 109,
+                "colno": 5,
+                "in_app": true
+              },
+              {
+                "function": "handler100",
+                "filename": "https://app.example.com/assets/app-3f2a1b.js",
+                "lineno": 110,
+                "colno": 5,
+                "in_app": true
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

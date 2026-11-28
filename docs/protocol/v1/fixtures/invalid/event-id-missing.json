@@ -1,0 +1,23 @@
+{
+  "description": "event_id is required",
+  "code": "invalid_event",
+  "index": 0,
+  "body": {
+    "events": [
+      {
+        "timestamp": "2026-11-27T10:00:00.000Z",
+        "platform": "javascript",
+        "sdk": {
+          "name": "trace-js",
+          "version": "0.1.0"
+        },
+        "exceptions": [
+          {
+            "type": "TypeError",
+            "message": "x is undefined"
+          }
+        ]
+      }
+    ]
+  }
+}
