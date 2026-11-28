@@ -19,8 +19,11 @@ func TestFilenamesAreNormalized(t *testing.T) {
 		{`C:\app\src\index.js`, "src/index.js"},
 		{"webpack://checkout/./src/cart.js", "src/cart.js"},
 		{"app.js", "app.js"},
-		// Words without a digit are not hashes, whatever their length.
+		{"https://cdn.example.com/assets/app.abcdefab.js", "assets/app.<hash>.js"},
+		// Words without a digit that are not hex are not hashes, whatever
+		// their length.
 		{"src/controllers/checkout.js", "controllers/checkout.js"},
+		{"src/components/MyComponent.js", "components/MyComponent.js"},
 		{"https://example.com", ""},
 	}
 

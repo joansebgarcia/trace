@@ -44,6 +44,20 @@ func TestIssueKeepsItsAggregates(t *testing.T) {
 	}
 }
 
+func TestCulpritOfAnAnonymousFunctionIsItsFile(t *testing.T) {
+	e := newEndpoint(t, withProcess())
+	project, key := createProject(t, e)
+
+	postEvents(t, e, key, eventWith(1, exc("TypeError", "x",
+		f("dispatch", "node_modules/react/index.js", 1, false),
+		f("<anonymous>", "src/app.js", 2, true))))
+	waitPending(t, e.Queue, 0)
+
+	if got := listIssues(t, e, project.ID)[0].Culprit; got != "src/app.js" {
+		t.Errorf("culprit = %q, want src/app.js", got)
+	}
+}
+
 func TestResentEventDoesNotCountAgain(t *testing.T) {
 	e := newEndpoint(t, withProcess())
 	project, key := createProject(t, e)

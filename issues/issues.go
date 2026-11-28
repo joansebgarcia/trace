@@ -347,7 +347,7 @@ func culprit(event event.Event) string {
 			if !frame.IsInApp() {
 				continue
 			}
-			if frame.Function == "" {
+			if frame.Function == "" || frame.Function == "<anonymous>" {
 				return frame.Filename
 			}
 			return frame.Function + " @ " + frame.Filename

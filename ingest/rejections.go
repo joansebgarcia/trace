@@ -6,8 +6,8 @@ import (
 	"sync"
 )
 
-// rejections counts the rejected requests by Project and code, in memory,
-// between two logs.
+// rejections counts the requests refused to be retried later, rate_limited
+// and ingest_overloaded, by Project and code, in memory, between two logs.
 type rejections struct {
 	mu     sync.Mutex
 	counts map[rejection]int

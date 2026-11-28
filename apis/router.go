@@ -136,13 +136,13 @@ func logRequests(logger *slog.Logger, proxies []netip.Prefix, next http.Handler)
 		ip, scheme := resolveClient(r, proxies)
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(recorder, r)
-		logger.Debug("http request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", recorder.status,
-			"client_ip", ip,
-			"scheme", scheme,
-		)
+		attrs := []any{"method", r.Method, "path", r.URL.Path, "status", recorder.status, "scheme", scheme}
+		// Trace keeps nothing of the clients that send Events, not even in
+		// its logs: no IP and, as for every request, no query.
+		if r.URL.Path != ingest.Path {
+			attrs = append(attrs, "client_ip", ip)
+		}
+		logger.Debug("http request", attrs...)
 	})
 }
 

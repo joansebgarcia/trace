@@ -115,7 +115,7 @@ type apiError struct {
 }
 
 // attempt is one authenticated request for a batch, which counts its
-// rejection, if any, to its Project.
+// rate_limited or ingest_overloaded rejection, if any, to its Project.
 type attempt struct {
 	w          http.ResponseWriter
 	projectID  string
@@ -376,10 +376,9 @@ func (h *Handler) logRejections() {
 	}
 }
 
-// fail counts the rejection of a and writes it. Before the whole body is
-// read, the connection closes, so the server does not read the rest.
+// fail writes the rejection of a. Before the whole body is read, the
+// connection closes, so the server does not read the rest.
 func (a *attempt) fail(status int, e apiError) {
-	a.rejections.add(a.projectID, e.Code)
 	if !a.bodyRead {
 		reject(a.w, status, e)
 		return
@@ -388,14 +387,17 @@ func (a *attempt) fail(status int, e apiError) {
 }
 
 // rejectRateLimited answers 429 with the wait, in whole seconds, until the
-// batch fits.
+// batch fits, and counts it for the rejection log.
 func (a *attempt) rejectRateLimited(wait time.Duration) {
+	a.rejections.add(a.projectID, codeRateLimited)
 	a.w.Header().Set("Retry-After", strconv.Itoa(roundUpSeconds(wait)))
 	a.fail(http.StatusTooManyRequests, apiError{Code: codeRateLimited, Message: "the Project sent more Events than its rate limit allows"})
 }
 
-// rejectOverloaded answers 503 ingest_overloaded.
+// rejectOverloaded answers 503 ingest_overloaded, and counts it for the
+// rejection log.
 func (a *attempt) rejectOverloaded() {
+	a.rejections.add(a.projectID, codeOverloaded)
 	a.w.Header().Set("Retry-After", strconv.Itoa(overloadedRetry))
 	a.fail(http.StatusServiceUnavailable, apiError{Code: codeOverloaded, Message: "the server is overloaded; retry later"})
 }

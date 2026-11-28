@@ -94,9 +94,10 @@ func TestRejectionsAreLoggedByProjectAndCode(t *testing.T) {
 
 	record := waitRecord(t, logs, "ingest rejections")
 
+	// Only refusals to retry later count: an invalid request is the SDK's
+	// own error.
 	want := []any{
 		map[string]any{"project_id": project.ID, "code": "rate_limited", "count": float64(2)},
-		map[string]any{"project_id": project.ID, "code": "unsupported_media_type", "count": float64(1)},
 	}
 	if got := record["rejections"]; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("rejections = %v, want %v", got, want)

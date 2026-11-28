@@ -40,6 +40,7 @@ var (
 	longHexPattern = regexp.MustCompile(`(?i)\b[0-9a-f]{8,}\b`)
 	numberPattern  = regexp.MustCompile(`\b\d+(?:\.\d+)?\b`)
 	hashPattern    = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
+	hexPattern     = regexp.MustCompile(`^[0-9a-fA-F]+$`)
 )
 
 // GroupKey is the Group Key of an Event with what it was computed from.
@@ -165,11 +166,12 @@ func normalizeMessage(message string) string {
 }
 
 // replaceHashes replaces the tokens of segment, split by "." and "-", that
-// look like bundler hashes: long, alphanumeric, with a digit.
+// look like bundler hashes: long and alphanumeric, with a digit or only hex
+// digits. A word without a digit, such as "MyComponent", is not a hash.
 func replaceHashes(segment string) string {
 	tokens := strings.FieldsFunc(segment, func(r rune) bool { return r == '.' || r == '-' })
 	for _, token := range tokens {
-		if len(token) >= minHash && hashPattern.MatchString(token) && strings.ContainsAny(token, "0123456789") {
+		if len(token) >= minHash && hashPattern.MatchString(token) && (strings.ContainsAny(token, "0123456789") || hexPattern.MatchString(token)) {
 			segment = strings.Replace(segment, token, "<hash>", 1)
 		}
 	}

@@ -173,6 +173,18 @@ If Trace runs in Docker, it does not see loopback:
 
 Trust only the addresses of your proxies. A trusted CIDR can set any client address in `X-Forwarded-For`.
 
+### Proxy logs
+
+Trace keeps no IP of the clients that send Events and never logs a query string, but your proxy may. SDKs that cannot set headers, such as with `navigator.sendBeacon`, send the Ingest Key in `?ingest_key=`, and an access log records it with the client IP. Leave `/api/ingest/` out of the access log, or strip its query and client address. Caddy writes no access log unless a `log` directive asks for one; with one, skip the ingest path with `log_skip` (Caddy 2.8 and later; `skip_log` before):
+
+```
+trace.example.com {
+	log
+	log_skip /api/ingest/*
+	reverse_proxy 127.0.0.1:8090
+}
+```
+
 ## Backup and restore
 
 ### Offline copy
