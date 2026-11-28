@@ -1,6 +1,6 @@
-// Package grouping computes the Group Key that decides which Issue an Event
-// belongs to.
-package grouping
+// The Group Key decides which Issue an Event belongs to.
+
+package issues
 
 import (
 	"crypto/sha256"
@@ -13,9 +13,10 @@ import (
 	"github.com/joansgarcia/trace/event"
 )
 
-// Version is the version of the algorithm Compute applies. A new version
-// applies only to Events grouped after it, and may open new Issues.
-const Version = 1
+// GroupingVersion is the version of the algorithm ComputeGroupKey applies.
+// A new version applies only to Events grouped after it, and may open new
+// Issues.
+const GroupingVersion = 1
 
 // minHash is the shortest token of a filename taken for a bundler hash.
 const minHash = 8
@@ -41,25 +42,25 @@ var (
 	hashPattern    = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 )
 
-// Group is the Group Key of an Event with what it was computed from.
-type Group struct {
+// GroupKey is the Group Key of an Event with what it was computed from.
+type GroupKey struct {
 	// Version is the version of the algorithm.
 	Version int
-	// Key is the hex SHA-256 of the components. It is unique within a
+	// Hash is the hex SHA-256 of the components. It is unique within a
 	// Project, not across Projects.
-	Key string
-	// Components are the readable parts of the Event behind Key, in order,
+	Hash string
+	// Components are the readable parts of the Event behind Hash, in order,
 	// such as "type: TypeError" or "frame: render @ src/app.js".
 	Components []string
 }
 
-// Compute returns the Group of e. A Custom Group Key replaces the
+// ComputeGroupKey returns the Group Key of e. A Custom Group Key replaces the
 // computation. Otherwise the components are, for each exception from the
 // outermost to its last cause, its type and its In-app frames as function
 // and normalized filename, without line, column or message. Without In-app
 // frames, every frame counts; without frames, the type and the message with
 // its variable parts replaced.
-func Compute(e event.Event) Group {
+func ComputeGroupKey(e event.Event) GroupKey {
 	var components []string
 	switch {
 	case len(e.GroupKey) > 0:
@@ -77,9 +78,9 @@ func Compute(e event.Event) Group {
 	}
 
 	// A JSON array keeps the components apart, whatever they contain.
-	encoded, _ := json.Marshal(append([]string{"v" + strconv.Itoa(Version)}, components...))
+	encoded, _ := json.Marshal(append([]string{"v" + strconv.Itoa(GroupingVersion)}, components...))
 	sum := sha256.Sum256(encoded)
-	return Group{Version: Version, Key: hex.EncodeToString(sum[:]), Components: components}
+	return GroupKey{Version: GroupingVersion, Hash: hex.EncodeToString(sum[:]), Components: components}
 }
 
 // NormalizeFilename returns filename without scheme, host, query or

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/joansgarcia/trace/event"
-	"github.com/joansgarcia/trace/grouping"
 	"github.com/joansgarcia/trace/store"
 )
 
@@ -116,10 +115,10 @@ func Record(ctx context.Context, data *store.DB, projectID string, receivedAt ti
 	if err != nil {
 		return Change{}, fmt.Errorf("encode Event: %w", err)
 	}
-	group := grouping.Compute(event)
-	components, err := json.Marshal(group.Components)
+	key := ComputeGroupKey(event)
+	components, err := json.Marshal(key.Components)
 	if err != nil {
-		return Change{}, fmt.Errorf("encode group components: %w", err)
+		return Change{}, fmt.Errorf("encode Group Key components: %w", err)
 	}
 	now := receivedAt.UTC().Format(timeLayout)
 
@@ -143,7 +142,7 @@ func Record(ctx context.Context, data *store.DB, projectID string, receivedAt ti
 		return Change{}, nil
 	}
 
-	change, err := applyEvent(ctx, tx, projectID, group.Key, now, event)
+	change, err := applyEvent(ctx, tx, projectID, key.Hash, now, event)
 	if err != nil {
 		return Change{}, err
 	}
@@ -151,7 +150,7 @@ func Record(ctx context.Context, data *store.DB, projectID string, receivedAt ti
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO events (id, project_id, event_id, issue_id, received_at, grouping_version, group_components, payload)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		store.NewID(), projectID, event.EventID, change.IssueID, now, group.Version, string(components), payload)
+		store.NewID(), projectID, event.EventID, change.IssueID, now, key.Version, string(components), payload)
 	if err != nil {
 		return Change{}, fmt.Errorf("insert Event: %w", err)
 	}

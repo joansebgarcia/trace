@@ -1,11 +1,11 @@
-package grouping_test
+package issues_test
 
 import (
 	"reflect"
 	"testing"
 
 	"github.com/joansgarcia/trace/event"
-	"github.com/joansgarcia/trace/grouping"
+	"github.com/joansgarcia/trace/issues"
 )
 
 func TestFilenamesAreNormalized(t *testing.T) {
@@ -26,7 +26,7 @@ func TestFilenamesAreNormalized(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.filename, func(t *testing.T) {
-			if got := grouping.NormalizeFilename(c.filename); got != c.want {
+			if got := issues.NormalizeFilename(c.filename); got != c.want {
 				t.Errorf("NormalizeFilename(%q) = %q, want %q", c.filename, got, c.want)
 			}
 		})
@@ -52,7 +52,7 @@ func TestMessagesWithoutFramesAreNormalized(t *testing.T) {
 		t.Run(c.message, func(t *testing.T) {
 			e := event.Event{Exceptions: []event.Exception{{Type: "Error", Message: c.message}}}
 
-			got := grouping.Compute(e).Components
+			got := issues.ComputeGroupKey(e).Components
 
 			if want := []string{"type: Error", c.want}; !reflect.DeepEqual(got, want) {
 				t.Errorf("components = %q, want %q", got, want)
@@ -72,7 +72,7 @@ func TestEveryFrameCountsWithoutInAppFrames(t *testing.T) {
 		},
 	}}}
 
-	got := grouping.Compute(e)
+	got := issues.ComputeGroupKey(e)
 
 	want := []string{"type: TypeError", "frame: fetch @ vendor/http.js", "frame: send @ vendor/api.js"}
 	if got.Version != 1 || !reflect.DeepEqual(got.Components, want) {
@@ -86,12 +86,12 @@ func TestGroupKeyDependsOnlyOnTheComponents(t *testing.T) {
 	second := event.Event{Exceptions: []event.Exception{{Type: "TypeError", Message: "y", Frames: []event.Frame{{Function: "a", Filename: "src/a.js", Lineno: 9, InApp: &inApp}}}}}
 	custom := event.Event{GroupKey: []string{"type: TypeError", "frame: a @ src/a.js"}, Exceptions: first.Exceptions}
 
-	if grouping.Compute(first).Key != grouping.Compute(second).Key {
+	if issues.ComputeGroupKey(first).Hash != issues.ComputeGroupKey(second).Hash {
 		t.Error("Events with the same components have other Group Keys")
 	}
 	// The kind of each component counts, so a Custom Group Key never
 	// collides with a computed one.
-	if grouping.Compute(first).Key == grouping.Compute(custom).Key {
+	if issues.ComputeGroupKey(first).Hash == issues.ComputeGroupKey(custom).Hash {
 		t.Error("a Custom Group Key collides with a computed one")
 	}
 }
