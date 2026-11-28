@@ -16,6 +16,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/joansgarcia/trace/apis"
+	"github.com/joansgarcia/trace/hub"
 	"github.com/joansgarcia/trace/migrations"
 	"github.com/joansgarcia/trace/store"
 )
@@ -204,14 +205,14 @@ func TestShutdownGivesUpAfterTimeoutWhenProcessIgnoresItsContext(t *testing.T) {
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
 	t.Cleanup(func() { close(release) })
-	stuck := func(ctx context.Context, data *store.DB, event []byte) (bool, error) {
+	stuck := func(ctx context.Context, data *store.DB, event []byte) ([]hub.Change, error) {
 		tx, err := data.Write.Begin()
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		started <- struct{}{}
 		<-release
-		return false, tx.Rollback()
+		return nil, tx.Rollback()
 	}
 	config := apis.Config{
 		Addr:            "127.0.0.1:0",
@@ -239,10 +240,10 @@ func TestShutdownGivesUpAfterTimeoutWhenProcessIgnoresItsContext(t *testing.T) {
 // newBlockingProcess returns a processing function that signals started when it
 // receives an Event, then waits for release or for its context to end before
 // saving it like saveEvent.
-func newBlockingProcess() (started <-chan struct{}, release chan struct{}, process func(context.Context, *store.DB, []byte) (bool, error)) {
+func newBlockingProcess() (started <-chan struct{}, release chan struct{}, process func(context.Context, *store.DB, []byte) ([]hub.Change, error)) {
 	s := make(chan struct{}, 1)
 	release = make(chan struct{})
-	process = func(ctx context.Context, data *store.DB, event []byte) (bool, error) {
+	process = func(ctx context.Context, data *store.DB, event []byte) ([]hub.Change, error) {
 		select {
 		case s <- struct{}{}:
 		default:
@@ -250,7 +251,7 @@ func newBlockingProcess() (started <-chan struct{}, release chan struct{}, proce
 		select {
 		case <-release:
 		case <-ctx.Done():
-			return false, ctx.Err()
+			return nil, ctx.Err()
 		}
 		return saveEvent(ctx, data, event)
 	}
@@ -296,15 +297,17 @@ func waitUnhealthy(t *testing.T, a *App) (int, string) {
 
 // saveEvent is a processing function for Events of the form
 // "<project>/<event_id>". It stores each one once in the table of
-// withEventsTable, and reports whether it was new.
-func saveEvent(ctx context.Context, data *store.DB, event []byte) (bool, error) {
+// withEventsTable, and returns a change if it was new.
+func saveEvent(ctx context.Context, data *store.DB, event []byte) ([]hub.Change, error) {
 	project, id, _ := strings.Cut(string(event), "/")
 	result, err := data.Write.ExecContext(ctx, "INSERT OR IGNORE INTO test_events (project, event_id) VALUES (?, ?)", project, id)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	n, err := result.RowsAffected()
-	return n > 0, err
+	if n, err := result.RowsAffected(); err != nil || n == 0 {
+		return nil, err
+	}
+	return []hub.Change{{Kind: hub.IssueUpdated, ProjectID: project}}, nil
 }
 
 // withEventsTable makes the app apply the built-in migrations plus one that

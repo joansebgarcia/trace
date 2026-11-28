@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/joansgarcia/trace/apis"
+	"github.com/joansgarcia/trace/hub"
 	"github.com/joansgarcia/trace/store"
 )
 
@@ -75,7 +76,7 @@ func startApp(t *testing.T) *apis.Server {
 		Addr:            "127.0.0.1:0",
 		DataDir:         t.TempDir(),
 		ShutdownTimeout: timeout,
-		Process:         func(context.Context, *store.DB, []byte) (bool, error) { return false, held },
+		Process:         func(context.Context, *store.DB, []byte) ([]hub.Change, error) { return nil, held },
 	})
 	if err := s.Start(); err != nil {
 		t.Fatalf("start server: %v", err)

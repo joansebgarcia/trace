@@ -34,7 +34,7 @@ type Config struct {
 	// Process commits a queued Event to data.db, idempotently by Project
 	// and event_id, and reports whether it changed data.db. Nil uses the
 	// processing of the ingest endpoint.
-	Process func(ctx context.Context, data *store.DB, event []byte) (bool, error)
+	Process func(ctx context.Context, data *store.DB, event []byte) ([]hub.Change, error)
 	// TrustedProxies are the CIDRs of the reverse proxies whose
 	// X-Forwarded-For and X-Forwarded-Proto headers resolve the IP and
 	// scheme of the client. Empty ignores those headers.

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/joansgarcia/trace/apis"
+	"github.com/joansgarcia/trace/hub"
 	"github.com/joansgarcia/trace/store"
 )
 
@@ -147,7 +148,7 @@ func (a *App) Stop(t testing.TB) {
 }
 
 // WithProcess makes the app process queued Events with process.
-func WithProcess(process func(ctx context.Context, data *store.DB, event []byte) (bool, error)) Option {
+func WithProcess(process func(ctx context.Context, data *store.DB, event []byte) ([]hub.Change, error)) Option {
 	return func(c *apis.Config) { c.Process = process }
 }
 
@@ -155,7 +156,7 @@ func WithProcess(process func(ctx context.Context, data *store.DB, event []byte)
 // processing function fails on every attempt, so the queue retries each one
 // until it stops.
 func WithoutProcess() Option {
-	return WithProcess(func(context.Context, *store.DB, []byte) (bool, error) { return false, errHeld })
+	return WithProcess(func(context.Context, *store.DB, []byte) ([]hub.Change, error) { return nil, errHeld })
 }
 
 // WithMigrations makes the app apply migrations instead of the ones built

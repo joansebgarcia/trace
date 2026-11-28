@@ -1,7 +1,6 @@
 package ingest_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -80,8 +79,8 @@ func TestProjectTermsApplyOnlyToNewEvents(t *testing.T) {
 }
 
 func TestQueuedEventIsAlreadyRedacted(t *testing.T) {
-	var logs bytes.Buffer
-	e := newEndpoint(t, withLogs(&logs, 0))
+	logs := &syncBuffer{}
+	e := newEndpoint(t, withLogs(logs, 0))
 	_, key := createProject(t, e)
 	secrets := []string{"hunter2", "4111 1111 1111 1111", "pa55"}
 	sensitive := strings.Replace(minimalEvent(eventID(1)), `"platform"`, `

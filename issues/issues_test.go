@@ -1,6 +1,7 @@
 package issues_test
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -24,14 +25,18 @@ func TestFirstEventCreatesAnOpenIssue(t *testing.T) {
 		t.Fatalf("issues = %+v, want 1", got)
 	}
 	want := issues.Issue{
-		ID:         got[0].ID,
-		ProjectID:  projectID,
-		Status:     issues.StatusOpen,
-		Title:      "TypeError: x is undefined",
-		Culprit:    "render @ src/app.js",
-		EventCount: 1,
+		ID:              got[0].ID,
+		ProjectID:       projectID,
+		Status:          issues.StatusOpen,
+		Title:           "TypeError: x is undefined",
+		Culprit:         "render @ src/app.js",
+		Level:           event.LevelError,
+		EventCount:      1,
+		FirstSeen:       receivedAt,
+		LastSeen:        receivedAt,
+		StatusChangedAt: receivedAt,
 	}
-	if got[0] != want {
+	if !reflect.DeepEqual(got[0], want) {
 		t.Errorf("issue = %+v, want %+v", got[0], want)
 	}
 	if _, err := uuid.Parse(got[0].ID); err != nil {
@@ -62,18 +67,21 @@ func TestResentEventIsNotCountedAgain(t *testing.T) {
 	e := newEvent("0190b7a4-7c1e-7000-8000-000000000001", "TypeError", "x is undefined")
 	record(t, data, projectID, e)
 
-	stored, err := issues.Record(t.Context(), data, projectID, time.Now(), e)
+	change, err := issues.Record(t.Context(), data, projectID, receivedAt, e)
 	if err != nil {
 		t.Fatalf("record again: %v", err)
 	}
 
-	if stored {
-		t.Error("stored = true, want false for a resent Event")
+	if change != (issues.Change{}) {
+		t.Errorf("change = %+v, want none for a resent Event", change)
 	}
 	if got := listIssues(t, data, projectID); len(got) != 1 || got[0].EventCount != 1 {
 		t.Errorf("issues = %+v, want 1 with 1 Event", got)
 	}
 }
+
+// receivedAt is when the tests receive their Events.
+var receivedAt = time.Date(2026, 11, 27, 10, 0, 0, 0, time.UTC)
 
 func createProject(t *testing.T, data *store.DB) string {
 	t.Helper()
@@ -89,12 +97,12 @@ func createProject(t *testing.T, data *store.DB) string {
 func record(t *testing.T, data *store.DB, projectID string, e event.Event) {
 	t.Helper()
 
-	stored, err := issues.Record(t.Context(), data, projectID, time.Now(), e)
+	change, err := issues.Record(t.Context(), data, projectID, receivedAt, e)
 	if err != nil {
 		t.Fatalf("record: %v", err)
 	}
-	if !stored {
-		t.Fatalf("stored = false, want true")
+	if change.Kind == "" {
+		t.Fatalf("change = none, want the Event stored")
 	}
 }
 
@@ -116,6 +124,7 @@ func newEvent(id, errType, message string) event.Event {
 		EventID:   id,
 		Timestamp: "2026-11-27T10:00:00.000Z",
 		Platform:  "javascript",
+		Level:     event.LevelError,
 		SDK:       event.SDK{Name: "trace-js", Version: "0.1.0"},
 		Exceptions: []event.Exception{{
 			Type:    errType,

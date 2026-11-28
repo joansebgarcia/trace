@@ -1,6 +1,7 @@
 package ingest_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,9 +13,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/joansgarcia/trace/hub"
 	"github.com/joansgarcia/trace/ingest"
 	"github.com/joansgarcia/trace/issues"
 	"github.com/joansgarcia/trace/migrations"
@@ -45,8 +48,41 @@ type endpoint struct {
 	Client   *http.Client
 	Projects *projects.Projects
 	Queue    *queue.Queue
+	Hub      *hub.Hub
 	Store    *store.Store
 	Data     *store.DB
+}
+
+// syncBuffer collects the JSON log records of an endpoint, written from
+// any goroutine.
+type syncBuffer struct {
+	mu  sync.Mutex
+	out bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.out.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.out.String()
+}
+
+// find returns the first record with message msg, or nil.
+func (b *syncBuffer) find(t *testing.T, msg string) map[string]any {
+	t.Helper()
+
+	for _, line := range strings.Split(b.String(), "\n") {
+		var record map[string]any
+		if line != "" && json.Unmarshal([]byte(line), &record) == nil && record["msg"] == msg {
+			return record
+		}
+	}
+	return nil
 }
 
 // request is one request to the endpoint. Empty fields take a default: POST,
@@ -224,6 +260,8 @@ type option func(*setup)
 // setup is what newEndpoint builds the endpoint from.
 type setup struct {
 	process bool
+	// release, if not nil, holds the processing until it is closed.
+	release <-chan struct{}
 	config  ingest.Config
 	logs    io.Writer
 }
@@ -232,6 +270,15 @@ type setup struct {
 // stay queued.
 func withProcess() option {
 	return func(s *setup) { s.process = true }
+}
+
+// withProcessAfter makes the queue process Events into Issues once release
+// is closed.
+func withProcessAfter(release <-chan struct{}) option {
+	return func(s *setup) {
+		s.process = true
+		s.release = release
+	}
 }
 
 // withRateLimit sets the default rate limit, in Events/s, of every Project.
@@ -267,12 +314,16 @@ func newEndpoint(t *testing.T, options ...option) *endpoint {
 	}
 
 	s := openStore(t)
+	h := hub.New()
+	t.Cleanup(h.Close)
 	config := queue.Config{DB: s.Ingest, Logger: logger}
 	if o.process {
-		p := ingest.NewProcess(logger)
+		process := h.Wrap(ingest.NewProcess(logger), s.Data)
 		config.Process = func(ctx context.Context, event []byte) error {
-			_, err := p(ctx, s.Data, event)
-			return err
+			if o.release != nil {
+				<-o.release
+			}
+			return process(ctx, event)
 		}
 	}
 	q, err := queue.New(config)
@@ -295,6 +346,7 @@ func newEndpoint(t *testing.T, options ...option) *endpoint {
 		Client:   &http.Client{Timeout: timeout},
 		Projects: p,
 		Queue:    q,
+		Hub:      h,
 		Store:    s,
 		Data:     s.Data,
 	}

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/joansgarcia/trace/event"
+	"github.com/joansgarcia/trace/hub"
 	"github.com/joansgarcia/trace/issues"
 	"github.com/joansgarcia/trace/projects"
 	"github.com/joansgarcia/trace/queue"
@@ -58,6 +59,13 @@ const (
 	codeShuttingDown     = "shutting_down"
 	codeInternal         = "internal_error"
 )
+
+// changeKinds maps the changes of an Issue to those the hub publishes.
+var changeKinds = map[issues.ChangeKind]hub.Kind{
+	issues.ChangeCreated:   hub.IssueCreated,
+	issues.ChangeUpdated:   hub.IssueUpdated,
+	issues.ChangeRegressed: hub.IssueRegressed,
+}
 
 var (
 	errTooLarge   = errors.New("body too large")
@@ -208,16 +216,27 @@ func (h *Handler) accept(w http.ResponseWriter, r *http.Request) {
 }
 
 // NewProcess returns the function that processes a queued Event into its
-// Issue and reports whether it changed data.db. A queued Event it cannot
-// decode is logged and dropped, since retrying it would never succeed.
-func NewProcess(logger *slog.Logger) func(ctx context.Context, data *store.DB, payload []byte) (bool, error) {
-	return func(ctx context.Context, data *store.DB, payload []byte) (bool, error) {
+// Issue and returns the change it made, if any. A queued Event it cannot
+// decode, or whose Project was deleted, is logged and dropped, since
+// retrying it would never succeed.
+func NewProcess(logger *slog.Logger) func(ctx context.Context, data *store.DB, payload []byte) ([]hub.Change, error) {
+	return func(ctx context.Context, data *store.DB, payload []byte) ([]hub.Change, error) {
 		var m message
 		if err := json.Unmarshal(payload, &m); err != nil {
 			logger.Error("drop undecodable queued Event", "err", err)
-			return false, nil
+			return nil, nil
 		}
-		return issues.Record(ctx, data, m.ProjectID, m.ReceivedAt, m.Event)
+		change, err := issues.Record(ctx, data, m.ProjectID, m.ReceivedAt, m.Event)
+		switch {
+		case errors.Is(err, issues.ErrProjectNotFound):
+			logger.Warn("drop queued Event of a deleted Project", "project_id", m.ProjectID, "event_id", m.Event.EventID)
+			return nil, nil
+		case err != nil:
+			return nil, err
+		case change.Kind == "":
+			return nil, nil
+		}
+		return []hub.Change{{Kind: changeKinds[change.Kind], ProjectID: m.ProjectID, IssueID: change.IssueID}}, nil
 	}
 }
 
