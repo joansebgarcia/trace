@@ -1,9 +1,12 @@
 //go:build unix
 
-// Command bench verifies the throughput assumption of ADR 0001. It starts a
-// real server built with the bench tag, sends Events to its benchmark
-// endpoint at a fixed rate, and reports the accepted Events/s and the ingest
-// latency. It exits with status 1 when the run misses the target.
+// Command bench verifies the throughput assumption of ADR 0001. It creates a
+// Project in a new data directory, starts a real server over it, sends
+// Events of the protocol v1 to its ingest endpoint at a fixed rate, and
+// reports the accepted Events/s and the ingest latency. Each Event goes
+// through the whole path: validation, Redaction, rate limit, backpressure,
+// and the workers that group it into its Issue. It exits with status 1 when
+// the run misses the target.
 //
 // It runs on Unix only: it stops the server through its process group.
 package main
@@ -23,10 +26,22 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/joansgarcia/trace/migrations"
+	"github.com/joansgarcia/trace/projects"
+	"github.com/joansgarcia/trace/store"
 )
 
 const (
-	benchPath       = "/api/bench/events"
+	ingestPath = "/api/ingest/v1/events"
+	keyHeader  = "X-Trace-Ingest-Key"
+	// idPlaceholder stands for the event_id in the body template.
+	idPlaceholder = "00000000-0000-0000-0000-000000000000"
+	// rateHeadroom sets the rate limit of the server above the load, so the
+	// limiter runs on every Event without refusing any.
+	rateHeadroom    = 2
 	healthPath      = "/api/health"
 	listeningMsg    = "http server listening"
 	startTimeout    = 30 * time.Second
@@ -133,7 +148,8 @@ func (s *server) exitErr() error {
 type result struct {
 	client  *http.Client
 	url     string
-	event   []byte
+	key     string
+	newBody func() []byte
 	elapsed time.Duration
 
 	mu        sync.Mutex
@@ -148,12 +164,11 @@ func (r *result) send(due time.Time) {
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.url, bytes.NewReader(r.event))
+	req, err := newRequest(ctx, r.url, r.key, r.newBody())
 	if err != nil {
 		r.fail(err.Error())
 		return
 	}
-	req.Header.Set("Content-Type", "application/json")
 	res, err := r.client.Do(req)
 	if err != nil {
 		r.fail(err.Error())
@@ -181,7 +196,7 @@ func (r *result) fail(reason string) {
 
 func main() {
 	var o options
-	flag.StringVar(&o.server, "server", "bin/trace-bench", "command that runs the server binary built with the bench tag; serve and its flags are appended")
+	flag.StringVar(&o.server, "server", "bin/trace", "command that runs the server binary; serve and its flags are appended")
 	flag.Float64Var(&o.rate, "rate", 500, "Events/s to send, and the target to accept")
 	flag.DurationVar(&o.duration, "duration", 30*time.Second, "length of the measured run")
 	flag.DurationVar(&o.warmup, "warmup", 5*time.Second, "length of the unmeasured run before it")
@@ -208,7 +223,11 @@ func benchmark(o options) (bool, error) {
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
-	srv, addr, err := startServer(o.server, dir)
+	key, err := prepare(dir)
+	if err != nil {
+		return false, err
+	}
+	srv, addr, err := startServer(o.server, dir, o.rate*rateHeadroom)
 	if err != nil {
 		return false, err
 	}
@@ -228,11 +247,11 @@ func benchmark(o options) (bool, error) {
 		return false, err
 	}
 
-	event := buildEvent(o.eventSize)
+	newBody := buildBodies(o.eventSize)
 	if o.warmup > 0 {
-		load(client, base, event, o.rate, o.warmup)
+		load(client, base, key, newBody, o.rate, o.warmup)
 	}
-	r := load(client, base, event, o.rate, o.duration)
+	r := load(client, base, key, newBody, o.rate, o.duration)
 
 	target := Target{Rate: o.rate, P99: o.p99}
 	summary := Summarize(r.latencies, r.failed, r.elapsed, target)
@@ -243,9 +262,28 @@ func benchmark(o options) (bool, error) {
 	return summary.Pass, srv.stop()
 }
 
+// prepare migrates a new data directory at dir and creates a Project in it,
+// and returns its Ingest Key.
+func prepare(dir string) (string, error) {
+	s, err := store.Open(dir)
+	if err != nil {
+		return "", err
+	}
+	schema, err := store.LoadMigrations(migrations.Files)
+	if err != nil {
+		return "", errors.Join(err, s.Close())
+	}
+	if err := s.Migrate(context.Background(), schema); err != nil {
+		return "", errors.Join(err, s.Close())
+	}
+	_, key, err := projects.New(s.Data).Create(context.Background(), "bench")
+	return key, errors.Join(err, s.Close())
+}
+
 // startServer runs command serve over dir on a free local port, in a process
-// group of its own, and returns it with the address it listens on.
-func startServer(command, dir string) (*server, string, error) {
+// group of its own, with rateLimit Events/s, and returns it with the address
+// it listens on.
+func startServer(command, dir string, rateLimit float64) (*server, string, error) {
 	fields := strings.Fields(command)
 	if len(fields) == 0 {
 		return nil, "", errors.New("empty -server command")
@@ -255,6 +293,7 @@ func startServer(command, dir string) (*server, string, error) {
 		"--dir", dir,
 		"--log-format", "json",
 		"--log-level", "info",
+		"--ingest-rate-limit", fmt.Sprint(rateLimit),
 	)
 	found := make(chan string, 1)
 	cmd := exec.Command(fields[0], args...)
@@ -299,11 +338,11 @@ func waitHealthy(client *http.Client, base string) error {
 	return errors.New("timed out waiting for the server to be healthy")
 }
 
-// load sends event at rate for duration without waiting for responses, so a
-// slow server cannot slow the load. Each latency counts from the moment its
-// request was due, not from when it was sent.
-func load(client *http.Client, base string, event []byte, rate float64, duration time.Duration) *result {
-	r := &result{client: client, url: base + benchPath, event: event, reasons: map[string]int{}}
+// load sends a body of newBody with key at rate for duration without
+// waiting for responses, so a slow server cannot slow the load. Each latency
+// counts from the moment its request was due, not from when it was sent.
+func load(client *http.Client, base, key string, newBody func() []byte, rate float64, duration time.Duration) *result {
+	r := &result{client: client, url: base + ingestPath, key: key, newBody: newBody, reasons: map[string]int{}}
 	interval := time.Duration(float64(time.Second) / rate)
 	total := int(duration / interval)
 
@@ -324,28 +363,61 @@ func load(client *http.Client, base string, event []byte, rate float64, duration
 	return r
 }
 
-// buildEvent returns a JSON Event of about size bytes, shaped like one an SDK
-// sends.
-func buildEvent(size int) []byte {
-	event := map[string]any{
-		"event_id":    "00000000000000000000000000000000",
-		"timestamp":   "2026-01-01T00:00:00Z",
+// newRequest returns a request that sends body to url with key.
+func newRequest(ctx context.Context, url, key string, body []byte) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(keyHeader, key)
+	return req, nil
+}
+
+// buildBodies returns a function that returns a batch of one Event of about
+// size bytes, shaped like one an SDK sends, with a new event_id each call.
+// The Events share their stack, so they group into one Issue.
+func buildBodies(size int) func() []byte {
+	inApp, dependency := true, false
+	frame := func(i int, in *bool) map[string]any {
+		return map[string]any{"function": fmt.Sprintf("handler%d", i), "filename": "https://shop.example.com/assets/app-3f2a1b9c.js", "lineno": 10 + i, "colno": 7, "in_app": in}
+	}
+	e := map[string]any{
+		"event_id":    idPlaceholder,
+		"timestamp":   "2026-01-01T00:00:00.000Z",
+		"platform":    "javascript",
+		"sdk":         map[string]any{"name": "trace-js", "version": "0.1.0"},
 		"level":       "error",
+		"mechanism":   "onerror",
 		"release":     "checkout@1.0.0",
 		"environment": "production",
-		"exception": map[string]any{
-			"type":  "TypeError",
-			"value": "Cannot read properties of undefined (reading 'id')",
-		},
-		"stacktrace": "",
+		"user":        map[string]any{"id": "user-42"},
+		"request":     map[string]any{"url": "https://shop.example.com/cart?session=abc&page=2", "method": "GET"},
+		"tags":        map[string]string{"browser": "chrome", "auth_token": "t0k3n"},
+		"exceptions": []any{map[string]any{
+			"type":    "TypeError",
+			"message": "Cannot read properties of undefined (reading 'id')",
+			"frames":  []any{frame(0, &dependency), frame(1, &inApp), frame(2, &inApp)},
+		}},
+		"breadcrumbs": []any{},
 	}
-	base, _ := json.Marshal(event)
-	if pad := size - len(base); pad > 0 {
-		frame := "at handler (src/checkout.js:42:7); "
-		event["stacktrace"] = strings.Repeat(frame, pad/len(frame)+1)[:pad]
+	// Breadcrumbs pad the Event to size.
+	for {
+		encoded, _ := json.Marshal(map[string]any{"events": []any{e}})
+		if len(encoded) >= size {
+			break
+		}
+		e["breadcrumbs"] = append(e["breadcrumbs"].([]any), map[string]any{
+			"timestamp": "2026-01-01T00:00:00.000Z",
+			"type":      "http",
+			"message":   "GET https://api.example.com/v1/cart?token=abc 200",
+		})
 	}
-	payload, _ := json.Marshal(event)
-	return payload
+	template, _ := json.Marshal(map[string]any{"events": []any{e}})
+
+	return func() []byte {
+		return bytes.Replace(template, []byte(idPlaceholder), []byte(uuid.Must(uuid.NewV7()).String()), 1)
+	}
 }
 
 // printReport writes the report of a run to w as Markdown.
@@ -356,10 +428,10 @@ func printReport(w io.Writer, o options, target Target, s Summary, reasons map[s
 		verdict = "FAIL: the assumption of ADR 0001 does not hold; reopen the ADR instead of tuning silently"
 	}
 
-	fmt.Fprintf(&b, "## Benchmark: queue acceptance path\n\n")
+	fmt.Fprintf(&b, "## Benchmark: ingest endpoint\n\n")
 	fmt.Fprintf(&b, "| | |\n|---|---|\n")
 	fmt.Fprintf(&b, "| Target | %.0f Events/s, p99 < %s |\n", target.Rate, target.P99)
-	fmt.Fprintf(&b, "| Run | %s at %.0f Events/s after %s warmup, %d-byte Events |\n", o.duration, o.rate, o.warmup, len(buildEvent(o.eventSize)))
+	fmt.Fprintf(&b, "| Run | %s at %.0f Events/s after %s warmup, %d-byte Events |\n", o.duration, o.rate, o.warmup, len(buildBodies(o.eventSize)()))
 	fmt.Fprintf(&b, "| Accepted | %d (%.1f Events/s) |\n", s.Accepted, s.Rate)
 	fmt.Fprintf(&b, "| Failed | %d |\n", s.Failed)
 	fmt.Fprintf(&b, "| p50 | %s |\n", s.P50.Round(10*time.Microsecond))

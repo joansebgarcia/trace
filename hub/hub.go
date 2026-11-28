@@ -1,5 +1,6 @@
-// Package hub notifies in-process subscribers that data.db changed. Writers
-// publish after their commit; the database takes no part in notifications.
+// Package hub notifies in-process subscribers of the changes to data.db.
+// Writers publish after their commit; the database takes no part in
+// notifications.
 package hub
 
 import (
@@ -9,24 +10,49 @@ import (
 	"github.com/joansgarcia/trace/store"
 )
 
-// Hub fans out change notifications to its subscribers.
+// subscriberBuffer is the number of changes a subscriber may leave unread
+// before later ones are dropped for it.
+const subscriberBuffer = 64
+
+// The kinds of change of an Issue.
+const (
+	// IssueCreated is the first Event of an Issue.
+	IssueCreated Kind = "created"
+	// IssueUpdated is a later Event of an Issue.
+	IssueUpdated Kind = "updated"
+	// IssueRegressed is a Regression: an Event for a resolved Issue.
+	IssueRegressed Kind = "regressed"
+)
+
+// Kind is what a Change did.
+type Kind string
+
+// Change is one committed change to data.db.
+type Change struct {
+	Kind      Kind
+	ProjectID string
+	IssueID   string
+}
+
+// Hub fans out changes to its subscribers.
 type Hub struct {
 	mu          sync.Mutex
-	subscribers map[chan struct{}]struct{}
+	subscribers map[chan Change]struct{}
 	closed      bool
 }
 
 func New() *Hub {
-	return &Hub{subscribers: map[chan struct{}]struct{}{}}
+	return &Hub{subscribers: map[chan Change]struct{}{}}
 }
 
-// Subscribe returns a channel that receives a value after commits to data.db,
-// and a function that ends the subscription. Notifications that arrive while
-// one is still unread merge into it, so a slow subscriber never blocks a
-// writer and must re-read what it shows after each value. The channel is
-// closed when the hub closes.
-func (h *Hub) Subscribe() (<-chan struct{}, func()) {
-	c := make(chan struct{}, 1)
+// Subscribe returns a channel that receives the changes committed to
+// data.db, and a function that ends the subscription. A slow subscriber
+// never blocks a writer: once it leaves subscriberBuffer changes unread, it
+// misses the later ones until it catches up, so it must re-read what it
+// shows after each change rather than apply changes one by one. The channel
+// is closed when the hub closes.
+func (h *Hub) Subscribe() (<-chan Change, func()) {
+	c := make(chan Change, subscriberBuffer)
 
 	h.mu.Lock()
 	if h.closed {
@@ -46,30 +72,30 @@ func (h *Hub) Subscribe() (<-chan struct{}, func()) {
 	}
 }
 
-// Publish notifies every subscriber that data.db changed. It never blocks.
-func (h *Hub) Publish() {
+// Publish sends change to every subscriber. It never blocks.
+func (h *Hub) Publish(change Change) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	for c := range h.subscribers {
 		select {
-		case c <- struct{}{}:
+		case c <- change:
 		default:
 		}
 	}
 }
 
 // Wrap returns process as a processing function of the queue that publishes
-// after each Event that changes data, once process has committed it. An
-// Event that fails or changes nothing publishes nothing.
-func (h *Hub) Wrap(process func(ctx context.Context, data *store.DB, event []byte) (bool, error), data *store.DB) func(context.Context, []byte) error {
+// the changes of each Event once process has committed them. An Event that
+// fails publishes nothing.
+func (h *Hub) Wrap(process func(ctx context.Context, data *store.DB, event []byte) ([]Change, error), data *store.DB) func(context.Context, []byte) error {
 	return func(ctx context.Context, event []byte) error {
-		changed, err := process(ctx, data, event)
+		changes, err := process(ctx, data, event)
 		if err != nil {
 			return err
 		}
-		if changed {
-			h.Publish()
+		for _, change := range changes {
+			h.Publish(change)
 		}
 		return nil
 	}

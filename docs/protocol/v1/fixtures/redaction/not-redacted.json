@@ -1,0 +1,55 @@
+{
+  "description": "Emails, IPs and values under ordinary keys stay as sent",
+  "input": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000007",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "javascript",
+    "sdk": {
+      "name": "trace-js",
+      "version": "0.1.0"
+    },
+    "exceptions": [
+      {
+        "type": "Error",
+        "message": "user ann@example.com from 10.0.0.1 failed"
+      }
+    ],
+    "user": {
+      "id": "ann@example.com"
+    },
+    "request": {
+      "url": "https://shop.example.com/cart?page=2",
+      "method": "POST"
+    },
+    "extra": {
+      "email": "ann@example.com",
+      "ip": "10.0.0.1"
+    }
+  },
+  "output": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000007",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "javascript",
+    "sdk": {
+      "name": "trace-js",
+      "version": "0.1.0"
+    },
+    "exceptions": [
+      {
+        "type": "Error",
+        "message": "user ann@example.com from 10.0.0.1 failed"
+      }
+    ],
+    "user": {
+      "id": "ann@example.com"
+    },
+    "request": {
+      "url": "https://shop.example.com/cart?page=2",
+      "method": "POST"
+    },
+    "extra": {
+      "email": "ann@example.com",
+      "ip": "10.0.0.1"
+    }
+  }
+}

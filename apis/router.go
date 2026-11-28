@@ -12,16 +12,11 @@ import (
 	"sync/atomic"
 
 	"github.com/joansgarcia/trace/ingest"
-	"github.com/joansgarcia/trace/queue"
 )
 
 // assetsPrefix starts the path of every asset of the UI build, the
 // build.assetsDir of Vite.
 const assetsPrefix = "/assets/"
-
-// routeBench adds the benchmark endpoint to mux. It adds nothing unless the
-// build has the bench tag, whose bench.go replaces it.
-var routeBench = func(*http.ServeMux, *queue.Queue) {}
 
 type statusRecorder struct {
 	http.ResponseWriter
@@ -62,13 +57,10 @@ func (n *notFoundWriter) Write(p []byte) (int, error) {
 // else. ping reports whether the instance is healthy; once stopping is set,
 // every request gets 503 shutting_down. Requests from proxies resolve their
 // client through the forwarding headers. events serves the ingest endpoint.
-// Builds with the bench tag also serve a benchmark endpoint that enqueues on
-// q.
-func NewRouter(logger *slog.Logger, proxies []netip.Prefix, ping func(context.Context) error, stopping *atomic.Bool, q *queue.Queue, events http.Handler, ui fs.FS) http.Handler {
+func NewRouter(logger *slog.Logger, proxies []netip.Prefix, ping func(context.Context) error, stopping *atomic.Bool, events http.Handler, ui fs.FS) http.Handler {
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/health", serveHealth(logger, ping))
-	api.Handle("POST "+ingest.Path, events)
-	routeBench(api, q)
+	api.Handle(ingest.Path, events)
 
 	routes := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
@@ -144,13 +136,13 @@ func logRequests(logger *slog.Logger, proxies []netip.Prefix, next http.Handler)
 		ip, scheme := resolveClient(r, proxies)
 		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(recorder, r)
-		logger.Debug("http request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", recorder.status,
-			"client_ip", ip,
-			"scheme", scheme,
-		)
+		attrs := []any{"method", r.Method, "path", r.URL.Path, "status", recorder.status, "scheme", scheme}
+		// Trace keeps nothing of the clients that send Events, not even in
+		// its logs: no IP and, as for every request, no query.
+		if r.URL.Path != ingest.Path {
+			attrs = append(attrs, "client_ip", ip)
+		}
+		logger.Debug("http request", attrs...)
 	})
 }
 

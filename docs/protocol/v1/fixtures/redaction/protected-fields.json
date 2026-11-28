@@ -1,0 +1,65 @@
+{
+  "description": "type, frames, event_id, timestamp, platform, sdk, level, environment, release and the Custom Group Key are never redacted",
+  "input": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000005",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "token-js",
+    "sdk": {
+      "name": "secret-sdk",
+      "version": "1.0.0"
+    },
+    "exceptions": [
+      {
+        "type": "TokenError",
+        "message": "expired",
+        "frames": [
+          {
+            "function": "getPassword",
+            "filename": "https://ann:pw@app.example.com/auth/token.js?token=1",
+            "lineno": 4111111111111111,
+            "colno": 3,
+            "in_app": true
+          }
+        ]
+      }
+    ],
+    "level": "fatal",
+    "environment": "session-staging",
+    "release": "auth@1.0.0",
+    "group_key": [
+      "password-reset",
+      "Bearer abc"
+    ]
+  },
+  "output": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000005",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "token-js",
+    "sdk": {
+      "name": "secret-sdk",
+      "version": "1.0.0"
+    },
+    "exceptions": [
+      {
+        "type": "TokenError",
+        "message": "expired",
+        "frames": [
+          {
+            "function": "getPassword",
+            "filename": "https://ann:pw@app.example.com/auth/token.js?token=1",
+            "lineno": 4111111111111111,
+            "colno": 3,
+            "in_app": true
+          }
+        ]
+      }
+    ],
+    "level": "fatal",
+    "environment": "session-staging",
+    "release": "auth@1.0.0",
+    "group_key": [
+      "password-reset",
+      "Bearer abc"
+    ]
+  }
+}

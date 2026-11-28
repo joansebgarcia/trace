@@ -30,12 +30,10 @@ go-build:
 
 go-test:
 	go test -race ./...
-	go test -race -tags bench ./bench
 
 go-lint:
 	test -z "$$(gofmt -l .)" || { gofmt -l .; echo "run gofmt -w on the files above"; exit 1; }
 	$(GOLANGCI_LINT) run
-	$(GOLANGCI_LINT) run --build-tags bench
 
 # web-dev serves the UI with hot reload on the Vite port, proxying /api/ to
 # the server of go-dev.
@@ -59,7 +57,7 @@ node_modules/.modules.yaml: package.json pnpm-lock.yaml pnpm-workspace.yaml web/
 	pnpm install --frozen-lockfile
 	touch $@
 
-# bench verifies ADR 0001 against a real server built with the bench tag.
+# bench verifies ADR 0001 against a real server, through its ingest endpoint.
 # BENCH_SERVER wraps the binary, such as to limit its CPUs and memory;
 # BENCH_FLAGS passes flags to the load generator (go run ./bench -h). The
 # recipe reads it from the environment, so the shell never parses its value
@@ -68,6 +66,5 @@ BENCH_SERVER ?=
 BENCH_FLAGS ?=
 export BENCH_FLAGS
 
-bench:
-	CGO_ENABLED=0 go build -tags bench -trimpath -o bin/$(BINARY)-bench .
-	go run ./bench -server "$(strip $(BENCH_SERVER) bin/$(BINARY)-bench)" $$BENCH_FLAGS
+bench: go-build
+	go run ./bench -server "$(strip $(BENCH_SERVER) bin/$(BINARY))" $$BENCH_FLAGS

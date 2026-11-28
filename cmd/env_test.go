@@ -142,6 +142,55 @@ func TestServeTrustedProxiesPrecedence(t *testing.T) {
 	}
 }
 
+func TestServeIngestLimitsPrecedence(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+		args []string
+		want []string
+	}{
+		{name: "default", want: []string{"ingest_rate_limit=200", "ingest_max_pending=100000"}},
+		{
+			name: "env over default",
+			env:  map[string]string{"INGEST_RATE_LIMIT": "50", "INGEST_MAX_PENDING": "2000"},
+			want: []string{"ingest_rate_limit=50", "ingest_max_pending=2000"},
+		},
+		{
+			name: "flag over env",
+			env:  map[string]string{"INGEST_RATE_LIMIT": "50", "INGEST_MAX_PENDING": "2000"},
+			args: []string{"--ingest-rate-limit=12.5", "--ingest-max-pending=300"},
+			want: []string{"ingest_rate_limit=12.5", "ingest_max_pending=300"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for name, value := range tt.env {
+				t.Setenv(cmd.EnvPrefix+name, value)
+			}
+
+			out := serveHealthy(t, tt.args...)()
+			for _, want := range tt.want {
+				if !strings.Contains(out, want) {
+					t.Errorf("startup log does not report %s:\n%s", want, out)
+				}
+			}
+		})
+	}
+}
+
+func TestServeRejectsInvalidIngestLimits(t *testing.T) {
+	for _, arg := range []string{"--ingest-rate-limit=0", "--ingest-rate-limit=-1", "--ingest-max-pending=0"} {
+		t.Run(arg, func(t *testing.T) {
+			_, err := execute("serve", "--http="+findFreeAddr(t), arg)
+
+			if err == nil {
+				t.Errorf("error = nil, want one for %s", arg)
+			}
+		})
+	}
+}
+
 func TestServeRejectsInvalidTrustedProxies(t *testing.T) {
 	for _, proxy := range []string{"10.0.0.1", "10.0.0.0/33", "proxy"} {
 		t.Run(proxy, func(t *testing.T) {
@@ -170,7 +219,7 @@ func TestServeHelpNamesEnv(t *testing.T) {
 		t.Fatalf("execute: %v", err)
 	}
 
-	for _, name := range []string{"DIR", "HTTP", "LOG_FORMAT", "LOG_LEVEL", "SHUTDOWN_TIMEOUT", "TRUSTED_PROXIES"} {
+	for _, name := range []string{"DIR", "HTTP", "LOG_FORMAT", "LOG_LEVEL", "SHUTDOWN_TIMEOUT", "TRUSTED_PROXIES", "INGEST_RATE_LIMIT", "INGEST_MAX_PENDING"} {
 		if env := cmd.EnvPrefix + name; !strings.Contains(out, env) {
 			t.Errorf("help does not name %s:\n%s", env, out)
 		}

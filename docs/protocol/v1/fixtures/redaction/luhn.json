@@ -1,0 +1,33 @@
+{
+  "description": "Only digit runs of 13 to 19 digits that pass the Luhn check are redacted as cards",
+  "input": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000004",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "javascript",
+    "sdk": {
+      "name": "trace-js",
+      "version": "0.1.0"
+    },
+    "exceptions": [
+      {
+        "type": "Error",
+        "message": "orders 4111111111111112 and 4111111111111111, id 123456789012"
+      }
+    ]
+  },
+  "output": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000004",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "javascript",
+    "sdk": {
+      "name": "trace-js",
+      "version": "0.1.0"
+    },
+    "exceptions": [
+      {
+        "type": "Error",
+        "message": "orders 4111111111111112 and [redacted], id 123456789012"
+      }
+    ]
+  }
+}

@@ -10,7 +10,7 @@ This guide takes an Operator from nothing to a Trace instance in production. Tra
 
 ### Capacity
 
-The reference capacity is ~500 Events/s with an ingest p99 under 50 ms on 2 vCPU / 4 GB. The [benchmark](benchmark.md) has so far measured only the queue acceptance path, not the full ingest handler: 500 Events/s with a p99 of 14.68 ms, on a 16 GB macOS host with the server at `GOMAXPROCS=2`. A run on a real 2 vCPU / 4 GB machine is still pending.
+The reference capacity is ~500 Events/s with an ingest p99 under 50 ms on 2 vCPU / 4 GB. The [benchmark](benchmark.md) measures the full ingest endpoint: 500 Events/s with a p99 of 10.4 ms, on a 16 GB macOS host with the server at `GOMAXPROCS=2`. A run on a real 2 vCPU / 4 GB machine is still pending.
 
 ## Settings
 
@@ -22,6 +22,8 @@ The reference capacity is ~500 Events/s with an ingest p99 under 50 ms on 2 vCPU
 | `--log-level` | `TRACE_LOG_LEVEL` | `info` | minimum log level: `debug`, `info`, `warn` or `error` |
 | `--shutdown-timeout` | `TRACE_SHUTDOWN_TIMEOUT` | `10s` | maximum time to wait for a graceful shutdown |
 | `--trusted-proxies` | `TRACE_TRUSTED_PROXIES` | none | comma-separated CIDRs of the reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` headers are trusted |
+| `--ingest-rate-limit` | `TRACE_INGEST_RATE_LIMIT` | `200` | default rate limit of each Project, in Events/s, with a burst of 5 s of it (at least 100 Events); a Project may override it |
+| `--ingest-max-pending` | `TRACE_INGEST_MAX_PENDING` | `100000` | largest backlog of accepted Events not yet processed; beyond it, ingestion answers `503 ingest_overloaded` |
 
 `trace serve --help` lists the same flags. Logs go to stdout.
 
@@ -170,6 +172,18 @@ If Trace runs in Docker, it does not see loopback:
 - With Caddy in another container on the same network, Trace sees that container's address. Trust the subnet of the network, such as `172.16.0.0/12` for Docker's default address pools, and keep Trace's port off the public interface.
 
 Trust only the addresses of your proxies. A trusted CIDR can set any client address in `X-Forwarded-For`.
+
+### Proxy logs
+
+Trace keeps no IP of the clients that send Events and never logs a query string, but your proxy may. SDKs that cannot set headers, such as with `navigator.sendBeacon`, send the Ingest Key in `?ingest_key=`, and an access log records it with the client IP. Leave `/api/ingest/` out of the access log, or strip its query and client address. Caddy writes no access log unless a `log` directive asks for one; with one, skip the ingest path with `log_skip` (Caddy 2.8 and later; `skip_log` before):
+
+```
+trace.example.com {
+	log
+	log_skip /api/ingest/*
+	reverse_proxy 127.0.0.1:8090
+}
+```
 
 ## Backup and restore
 

@@ -1,0 +1,61 @@
+{
+  "description": "Cards, Bearer tokens and JWTs are redacted as fragments of message, raw_stack, Breadcrumb messages and extra",
+  "input": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000003",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "javascript",
+    "sdk": {
+      "name": "trace-js",
+      "version": "0.1.0"
+    },
+    "exceptions": [
+      {
+        "type": "PaymentError",
+        "message": "charge failed for 4111 1111 1111 1111 with Bearer abc.def-123",
+        "raw_stack": "PaymentError: session eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U\n    at charge (billing/charge.js:10:5)"
+      }
+    ],
+    "breadcrumbs": [
+      {
+        "timestamp": "2026-11-27T09:59:59.000Z",
+        "type": "http",
+        "message": "sent Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+      }
+    ],
+    "extra": {
+      "note": "paid with 4242-4242-4242-4242 today",
+      "items": [
+        "card 5555555555554444"
+      ]
+    }
+  },
+  "output": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000003",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "javascript",
+    "sdk": {
+      "name": "trace-js",
+      "version": "0.1.0"
+    },
+    "exceptions": [
+      {
+        "type": "PaymentError",
+        "message": "charge failed for [redacted] with Bearer [redacted]",
+        "raw_stack": "PaymentError: session [redacted]\n    at charge (billing/charge.js:10:5)"
+      }
+    ],
+    "breadcrumbs": [
+      {
+        "timestamp": "2026-11-27T09:59:59.000Z",
+        "type": "http",
+        "message": "sent Authorization: Bearer [redacted]"
+      }
+    ],
+    "extra": {
+      "note": "paid with [redacted] today",
+      "items": [
+        "card [redacted]"
+      ]
+    }
+  }
+}

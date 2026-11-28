@@ -1,0 +1,109 @@
+{
+  "description": "Values under sensitive key names are redacted whole in extra (recursively), contexts, tags and Breadcrumb data; matching ignores case, - and _, and works by substring",
+  "input": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000001",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "javascript",
+    "sdk": {
+      "name": "trace-js",
+      "version": "0.1.0"
+    },
+    "exceptions": [
+      {
+        "type": "TypeError",
+        "message": "x is undefined"
+      }
+    ],
+    "extra": {
+      "user_password": "hunter2",
+      "X-Api-Key": "abc123",
+      "author": "ann",
+      "order": 42,
+      "nested": {
+        "Session-Id": "s-1",
+        "list": [
+          {
+            "token": "t-1",
+            "plan": "pro"
+          }
+        ],
+        "Private_Key": {
+          "pem": "---"
+        }
+      }
+    },
+    "tags": {
+      "auth_header": "x",
+      "plan": "pro"
+    },
+    "contexts": {
+      "browser": {
+        "name": "chrome",
+        "cookie": "a=b"
+      }
+    },
+    "breadcrumbs": [
+      {
+        "timestamp": "2026-11-27T09:59:59.000Z",
+        "type": "http",
+        "data": {
+          "csrf": "x",
+          "status": 200,
+          "credentials": "include"
+        }
+      }
+    ]
+  },
+  "output": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000001",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "javascript",
+    "sdk": {
+      "name": "trace-js",
+      "version": "0.1.0"
+    },
+    "exceptions": [
+      {
+        "type": "TypeError",
+        "message": "x is undefined"
+      }
+    ],
+    "extra": {
+      "user_password": "[redacted]",
+      "X-Api-Key": "[redacted]",
+      "author": "[redacted]",
+      "order": 42,
+      "nested": {
+        "Session-Id": "[redacted]",
+        "list": [
+          {
+            "token": "[redacted]",
+            "plan": "pro"
+          }
+        ],
+        "Private_Key": "[redacted]"
+      }
+    },
+    "tags": {
+      "auth_header": "[redacted]",
+      "plan": "pro"
+    },
+    "contexts": {
+      "browser": {
+        "name": "chrome",
+        "cookie": "[redacted]"
+      }
+    },
+    "breadcrumbs": [
+      {
+        "timestamp": "2026-11-27T09:59:59.000Z",
+        "type": "http",
+        "data": {
+          "csrf": "[redacted]",
+          "status": 200,
+          "credentials": "[redacted]"
+        }
+      }
+    ]
+  }
+}

@@ -34,11 +34,17 @@ type Config struct {
 	// Process commits a queued Event to data.db, idempotently by Project
 	// and event_id, and reports whether it changed data.db. Nil uses the
 	// processing of the ingest endpoint.
-	Process func(ctx context.Context, data *store.DB, event []byte) (bool, error)
+	Process func(ctx context.Context, data *store.DB, event []byte) ([]hub.Change, error)
 	// TrustedProxies are the CIDRs of the reverse proxies whose
 	// X-Forwarded-For and X-Forwarded-Proto headers resolve the IP and
 	// scheme of the client. Empty ignores those headers.
 	TrustedProxies []netip.Prefix
+	// IngestRateLimit is the default rate limit of a Project, in Events/s.
+	// Zero uses ingest.DefaultRateLimit.
+	IngestRateLimit float64
+	// IngestMaxPending is the largest backlog of accepted Events not yet
+	// processed. Zero uses ingest.DefaultMaxPending.
+	IngestMaxPending int
 	// UI holds the files of the web UI, served outside /api/. Nil uses the
 	// ones built into the binary: the real UI with the ui tag, a placeholder
 	// page without it.
@@ -54,6 +60,7 @@ type Server struct {
 	queue    *queue.Queue
 	hub      *hub.Hub
 	projects *projects.Projects
+	ingest   *ingest.Handler
 	server   *http.Server
 	listener net.Listener
 	serveErr chan error
@@ -115,12 +122,19 @@ func (s *Server) Start() error {
 	s.hub = h
 	s.projects = projects.New(st.Data)
 	s.listener = listener
+	s.ingest = ingest.NewHandler(ingest.Config{
+		Projects:   s.projects,
+		Queue:      q,
+		Logger:     s.logger,
+		RateLimit:  s.config.IngestRateLimit,
+		MaxPending: s.config.IngestMaxPending,
+	})
 	ui := s.config.UI
 	if ui == nil {
 		ui = web.FS
 	}
 	s.server = &http.Server{
-		Handler:           NewRouter(s.logger, s.config.TrustedProxies, s.ping, &s.stopping, q, ingest.NewHandler(s.projects, q, s.logger), ui),
+		Handler:           NewRouter(s.logger, s.config.TrustedProxies, s.ping, &s.stopping, s.ingest, ui),
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 	s.logger.Info("http server listening", "addr", s.Addr())
@@ -173,6 +187,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		// Cut the requests still in flight before their files close.
 		serverErr = errors.Join(serverErr, s.server.Close())
 	}
+	// Once no request is in flight, the last rejections are logged.
+	s.ingest.Close()
 	err := errors.Join(queueErr, serverErr, s.store.Checkpoint(ctx), s.store.Close())
 	if err != nil {
 		s.logger.Error("shutdown incomplete; queued Events are processed on the next start", "err", err)

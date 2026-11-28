@@ -1,0 +1,52 @@
+{
+  "description": "A Project's extra terms add to the default ones, with the same matching",
+  "terms": [
+    "order-ref"
+  ],
+  "input": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000006",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "javascript",
+    "sdk": {
+      "name": "trace-js",
+      "version": "0.1.0"
+    },
+    "exceptions": [
+      {
+        "type": "TypeError",
+        "message": "x is undefined"
+      }
+    ],
+    "extra": {
+      "order_ref": "A-1",
+      "OrderRef2": "B-2",
+      "total": 10
+    },
+    "tags": {
+      "orderref": "x"
+    }
+  },
+  "output": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000006",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "javascript",
+    "sdk": {
+      "name": "trace-js",
+      "version": "0.1.0"
+    },
+    "exceptions": [
+      {
+        "type": "TypeError",
+        "message": "x is undefined"
+      }
+    ],
+    "extra": {
+      "order_ref": "[redacted]",
+      "OrderRef2": "[redacted]",
+      "total": 10
+    },
+    "tags": {
+      "orderref": "[redacted]"
+    }
+  }
+}

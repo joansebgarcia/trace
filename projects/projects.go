@@ -1,4 +1,5 @@
-// Package projects resolves the Ingest Keys an SDK presents to their Project.
+// Package projects resolves the Ingest Keys an SDK presents to their Project,
+// with the settings of the Project that ingestion needs.
 package projects
 
 import (
@@ -6,8 +7,10 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -17,14 +20,24 @@ import (
 // keySize is the number of random bytes of an Ingest Key.
 const keySize = 32
 
-// ErrKeyNotFound is returned by Revoke for a key that does not exist.
-var ErrKeyNotFound = errors.New("ingest key not found")
+var (
+	// ErrKeyNotFound is returned by Revoke for a key that does not exist.
+	ErrKeyNotFound = errors.New("ingest key not found")
+	// ErrNotFound is returned for a Project that does not exist.
+	ErrNotFound = errors.New("project not found")
+)
 
 // Project is an application monitored by the instance.
 type Project struct {
 	// ID is a UUIDv7.
 	ID   string
 	Name string
+	// RedactionTerms are the key terms the Project redacts on top of the
+	// default ones.
+	RedactionTerms []string
+	// RateLimit overrides the default rate limit, in Events/s. Zero keeps
+	// the default.
+	RateLimit float64
 }
 
 // Projects resolves Ingest Keys from an in-memory cache of the active keys in
@@ -87,6 +100,66 @@ func (p *Projects) Revoke(ctx context.Context, key string) error {
 	return nil
 }
 
+// AddRedactionTerms adds terms to the key terms the Project projectID
+// redacts. They apply to the Events it accepts from then on, not to those
+// already accepted.
+func (p *Projects) AddRedactionTerms(ctx context.Context, projectID string, terms ...string) error {
+	tx, err := p.db.Write.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin add redaction terms: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var stored string
+	if err := tx.QueryRowContext(ctx, "SELECT redaction_terms FROM projects WHERE id = ?", projectID).Scan(&stored); err != nil {
+		return errors.Join(ErrNotFound, err)
+	}
+	var current []string
+	if err := json.Unmarshal([]byte(stored), &current); err != nil {
+		return fmt.Errorf("decode redaction terms: %w", err)
+	}
+	for _, term := range terms {
+		if term != "" && !slices.Contains(current, term) {
+			current = append(current, term)
+		}
+	}
+	encoded, err := json.Marshal(current)
+	if err != nil {
+		return fmt.Errorf("encode redaction terms: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "UPDATE projects SET redaction_terms = ? WHERE id = ?", string(encoded), projectID); err != nil {
+		return fmt.Errorf("update redaction terms: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit add redaction terms: %w", err)
+	}
+
+	p.Invalidate()
+	return nil
+}
+
+// SetRateLimit makes rate, in Events/s, the rate limit of the Project
+// projectID. Zero restores the default.
+func (p *Projects) SetRateLimit(ctx context.Context, projectID string, rate float64) error {
+	var limit any
+	if rate > 0 {
+		limit = rate
+	}
+	if err := p.update(ctx, "UPDATE projects SET rate_limit = ? WHERE id = ?", limit, projectID); err != nil {
+		return fmt.Errorf("set rate limit: %w", err)
+	}
+	return nil
+}
+
+// Delete removes the Project projectID with its Ingest Keys, Issues and
+// Events.
+func (p *Projects) Delete(ctx context.Context, projectID string) error {
+	if err := p.update(ctx, "DELETE FROM projects WHERE id = ?", projectID); err != nil {
+		return fmt.Errorf("delete project: %w", err)
+	}
+	return nil
+}
+
 // Resolve returns the Project of key, and false if key is unknown or revoked.
 // It reads data.db only to reload an invalid cache.
 func (p *Projects) Resolve(ctx context.Context, key string) (Project, bool, error) {
@@ -113,6 +186,21 @@ func (p *Projects) Invalidate() {
 	p.mu.Unlock()
 }
 
+// update runs query, which changes the row of the Project in its last
+// argument, and invalidates the cache.
+func (p *Projects) update(ctx context.Context, query string, args ...any) error {
+	result, err := p.db.Write.ExecContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	if n, err := result.RowsAffected(); err != nil || n == 0 {
+		return errors.Join(ErrNotFound, err)
+	}
+
+	p.Invalidate()
+	return nil
+}
+
 // load fills the cache unless another call already did. It holds the lock
 // while it reads, so an Invalidate after a commit always discards a cache
 // read before it.
@@ -124,7 +212,7 @@ func (p *Projects) load(ctx context.Context) (map[string]Project, error) {
 	}
 
 	rows, err := p.db.Read.QueryContext(ctx, `
-		SELECT k.key, p.id, p.name
+		SELECT k.key, p.id, p.name, p.redaction_terms, coalesce(p.rate_limit, 0)
 		FROM ingest_keys k JOIN projects p ON p.id = k.project_id
 		WHERE k.revoked_at IS NULL`)
 	if err != nil {
@@ -134,10 +222,16 @@ func (p *Projects) load(ctx context.Context) (map[string]Project, error) {
 
 	keys := map[string]Project{}
 	for rows.Next() {
-		var hash string
+		var hash, terms string
 		var project Project
-		if err := rows.Scan(&hash, &project.ID, &project.Name); err != nil {
+		if err := rows.Scan(&hash, &project.ID, &project.Name, &terms, &project.RateLimit); err != nil {
 			return nil, fmt.Errorf("load ingest keys: %w", err)
+		}
+		if err := json.Unmarshal([]byte(terms), &project.RedactionTerms); err != nil {
+			return nil, fmt.Errorf("decode redaction terms: %w", err)
+		}
+		if len(project.RedactionTerms) == 0 {
+			project.RedactionTerms = nil
 		}
 		keys[hash] = project
 	}

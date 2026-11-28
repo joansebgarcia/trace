@@ -1,8 +1,10 @@
 package queue_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -208,6 +210,65 @@ func TestEnqueueFailsWhenOverloaded(t *testing.T) {
 	}
 	if err := receiveError(t, results); err != nil {
 		t.Fatalf("second result = %v, want success", err)
+	}
+}
+
+func TestEnqueueFailsWhenTheWriterDoesNotAdmitInTime(t *testing.T) {
+	db := openStore(t, t.TempDir()).Ingest
+	q := startQueue(t, queue.Config{DB: db, Process: newRecorder().Process})
+	stall, err := db.Write.BeginTx(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("stall writer: %v", err)
+	}
+
+	// Far fewer Events than the capacity, but more requests than the
+	// writer admits while it is stalled.
+	const requests = 300
+	results := make(chan error, requests)
+	for i := range requests {
+		go func() { results <- q.Enqueue(t.Context(), [][]byte{fmt.Appendf(nil, "e%d", i)}) }()
+	}
+
+	// The requests the writer cannot admit fail soon; the others wait.
+	var overloaded int
+	for range requests {
+		if err := receiveError(t, results); !errors.Is(err, queue.ErrOverloaded) {
+			t.Fatalf("result while stalled = %v, want ErrOverloaded", err)
+		}
+		overloaded++
+		if len(results) == 0 {
+			time.Sleep(100 * time.Millisecond)
+			if len(results) == 0 {
+				break
+			}
+		}
+	}
+	if err := stall.Rollback(); err != nil {
+		t.Fatalf("release writer: %v", err)
+	}
+	for range requests - overloaded {
+		if err := receiveError(t, results); err != nil {
+			t.Fatalf("result after release = %v, want success", err)
+		}
+	}
+}
+
+func TestEnqueueFailsWhenTheDiskIsFull(t *testing.T) {
+	db := openStore(t, t.TempDir()).Ingest
+	q := startQueue(t, queue.Config{DB: db})
+	// The file cannot grow past the pages it has, as on a full disk.
+	if _, err := db.Write.Exec("PRAGMA max_page_count = 1"); err != nil {
+		t.Fatalf("limit file: %v", err)
+	}
+
+	events := make([][]byte, 100)
+	for i := range events {
+		events[i] = bytes.Repeat([]byte("x"), 4096)
+	}
+	err := q.Enqueue(t.Context(), events)
+
+	if !errors.Is(err, queue.ErrFull) {
+		t.Errorf("err = %v, want ErrFull", err)
 	}
 }
 

@@ -122,6 +122,20 @@ Each frame is an object whose fields are all optional:
 | `message` | string | At most 1024 characters. |
 | `data` | object | Any JSON object. |
 
+## Redaction
+
+Before an Event is stored, the server replaces its sensitive values with `"[redacted]"`, by the rules of [`redaction.md`](redaction.md). It never rejects an Event for holding them. SDKs SHOULD apply the same rules before sending.
+
+## Grouping
+
+The server groups equivalent Events into one Issue by their Group Key, after Redaction. An SDK only takes part through `in_app`, which the server uses as sent, and the Custom Group Key `group_key`, which replaces the computation. Version 1 of the computation takes, for each exception from the outermost to its last cause, its `type` and its In-app frames as `function` and `filename`, never `lineno`, `colno` or `message`:
+
+- `filename` loses its scheme, host, query and fragment, bundler hashes become `<hash>`, and only its last two path segments count. A bundler hash is a part of a segment, between `.` or `-`, of at least 8 letters, digits or `_`, with a digit or only hex digits: `https://cdn.example.com/assets/js/app-3f2a1b9c.js` becomes `js/app-<hash>.js`.
+- Consecutive equal frames, as in recursion, count once; frames without `filename` are dropped; an anonymous `function` counts only its `filename`.
+- Without In-app frames, every frame counts. Without frames, the `type` and the `message` count, with ids, numbers, emails, URLs and quoted literals replaced by placeholders such as `<uuid>` and `<num>`.
+
+Minified code without source maps groups by its minified names, so an Issue may split across Releases.
+
 ## Responses
 
 A batch is accepted only once it is durably stored:
