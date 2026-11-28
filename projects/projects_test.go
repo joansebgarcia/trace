@@ -1,6 +1,7 @@
 package projects_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/google/uuid"
@@ -16,7 +17,7 @@ func TestCreatedKeyResolvesToItsProject(t *testing.T) {
 
 	got, ok, err := p.Resolve(t.Context(), key)
 
-	if err != nil || !ok || got != project {
+	if err != nil || !ok || !reflect.DeepEqual(got, project) {
 		t.Errorf("resolve = %+v %t %v, want %+v true nil", got, ok, err, project)
 	}
 	if _, err := uuid.Parse(project.ID); err != nil {

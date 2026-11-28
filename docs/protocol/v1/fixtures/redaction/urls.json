@@ -1,0 +1,69 @@
+{
+  "description": "In URLs, sensitive query parameters and user:pass@ userinfo are redacted, keeping the rest of the URL",
+  "input": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000002",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "javascript",
+    "sdk": {
+      "name": "trace-js",
+      "version": "0.1.0"
+    },
+    "exceptions": [
+      {
+        "type": "TypeError",
+        "message": "x is undefined"
+      }
+    ],
+    "request": {
+      "url": "https://ann:pa55@shop.example.com/cart?token=abc&page=2&API-KEY=k#top",
+      "method": "GET"
+    },
+    "breadcrumbs": [
+      {
+        "timestamp": "2026-11-27T09:59:59.000Z",
+        "type": "http",
+        "message": "GET https://bob:s3cret@api.example.com/v1/orders",
+        "data": {
+          "url": "https://api.example.com/v1?session_id=xyz&q=1",
+          "method": "GET"
+        }
+      }
+    ],
+    "extra": {
+      "callback": "https://hooks.example.com/notify?secret=s&id=7"
+    }
+  },
+  "output": {
+    "event_id": "0190b7a4-7c1e-7000-8000-000000000002",
+    "timestamp": "2026-11-27T10:00:00.000Z",
+    "platform": "javascript",
+    "sdk": {
+      "name": "trace-js",
+      "version": "0.1.0"
+    },
+    "exceptions": [
+      {
+        "type": "TypeError",
+        "message": "x is undefined"
+      }
+    ],
+    "request": {
+      "url": "https://[redacted]@shop.example.com/cart?token=[redacted]&page=2&API-KEY=[redacted]#top",
+      "method": "GET"
+    },
+    "breadcrumbs": [
+      {
+        "timestamp": "2026-11-27T09:59:59.000Z",
+        "type": "http",
+        "message": "GET https://[redacted]@api.example.com/v1/orders",
+        "data": {
+          "url": "https://api.example.com/v1?session_id=[redacted]&q=1",
+          "method": "GET"
+        }
+      }
+    ],
+    "extra": {
+      "callback": "https://hooks.example.com/notify?secret=[redacted]&id=7"
+    }
+  }
+}

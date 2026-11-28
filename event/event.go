@@ -20,6 +20,8 @@ import (
 const (
 	// MaxEvents is the largest number of Events in a batch.
 	MaxEvents = 100
+	// maxEventSize is the largest Event, in bytes as sent.
+	maxEventSize = 128 << 10
 	// maxExceptions is the largest number of exceptions of an Event.
 	maxExceptions = 5
 	// maxFrames is the largest number of frames of an exception.
@@ -52,6 +54,8 @@ const (
 	msgInvalidBody        = "body must be a JSON object with an events array"
 	msgBatchSize          = "events must hold between 1 and %d Events"
 	msgInvalidEvents      = "the batch has invalid Events"
+	msgLargeEvents        = "the batch has Events over %d bytes"
+	msgLargeEvent         = "the Event holds more than %d bytes"
 	msgNotObject          = "each Event must be a JSON object"
 	msgWrongType          = "%s has the wrong type"
 	msgInvalidID          = "event_id must be a UUID"
@@ -269,10 +273,12 @@ func (b *Breadcrumb) UnmarshalJSON(data []byte) error {
 }
 
 // BatchError is a batch that breaks the protocol. Details lists the invalid
-// Events, if the batch itself is well formed.
+// Events, if the batch itself is well formed. TooLarge means those Events
+// break a size limit rather than a rule of their content.
 type BatchError struct {
-	Message string
-	Details []Detail
+	Message  string
+	Details  []Detail
+	TooLarge bool
 }
 
 func (e *BatchError) Error() string {
@@ -293,8 +299,9 @@ type batch struct {
 
 // DecodeBatch decodes a body of the form {"events": [...]}. The batch is all
 // or nothing: if any Event is invalid, it returns a *BatchError listing
-// every invalid one. Field names are case-sensitive, and unknown fields,
-// case variants included, are ignored.
+// every invalid one, or only those over the size limit if there are any.
+// Field names are case-sensitive, and unknown fields, case variants
+// included, are ignored.
 func DecodeBatch(body []byte) ([]Event, error) {
 	var b batch
 	if err := decodeExact(body, &b); err != nil {
@@ -302,6 +309,16 @@ func DecodeBatch(body []byte) ([]Event, error) {
 	}
 	if len(b.Events) == 0 || len(b.Events) > MaxEvents {
 		return nil, &BatchError{Message: fmt.Sprintf(msgBatchSize, MaxEvents)}
+	}
+
+	var large []Detail
+	for i, raw := range b.Events {
+		if len(raw) > maxEventSize {
+			large = append(large, Detail{Index: i, Message: fmt.Sprintf(msgLargeEvent, maxEventSize)})
+		}
+	}
+	if large != nil {
+		return nil, &BatchError{Message: fmt.Sprintf(msgLargeEvents, maxEventSize), Details: large, TooLarge: true}
 	}
 
 	events := make([]Event, len(b.Events))

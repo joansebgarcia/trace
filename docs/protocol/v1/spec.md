@@ -122,6 +122,10 @@ Each frame is an object whose fields are all optional:
 | `message` | string | At most 1024 characters. |
 | `data` | object | Any JSON object. |
 
+## Redaction
+
+Before an Event is stored, the server replaces its sensitive values with `"[redacted]"`, by the rules of [`redaction.md`](redaction.md). It never rejects an Event for holding them. SDKs SHOULD apply the same rules before sending.
+
 ## Responses
 
 A batch is accepted only once it is durably stored:

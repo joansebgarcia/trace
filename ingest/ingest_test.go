@@ -45,11 +45,21 @@ type endpoint struct {
 	Client   *http.Client
 	Projects *projects.Projects
 	Queue    *queue.Queue
+	Store    *store.Store
 	Data     *store.DB
 }
 
+// request is one request to the endpoint. Empty fields take a default: POST,
+// application/json and no encoding.
+type request struct {
+	Method  string
+	Query   string
+	Headers map[string]string
+	Body    io.Reader
+}
+
 func TestAcceptedEventIsProcessedIntoAnIssue(t *testing.T) {
-	e := newEndpoint(t, true)
+	e := newEndpoint(t, withProcess())
 	project, key := createProject(t, e)
 
 	status, body := postEvents(t, e, key, minimalEvent("0190b7a4-7c1e-7000-8000-000000000001"))
@@ -102,7 +112,7 @@ func TestIngestKeyIsRequiredAndValid(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			e := newEndpoint(t, false)
+			e := newEndpoint(t)
 
 			status, body := postEvents(t, e, c.key(t, e), event)
 
@@ -115,7 +125,7 @@ func TestIngestKeyIsRequiredAndValid(t *testing.T) {
 }
 
 func TestRequestWithAnInvalidKeyIsRejectedWithoutReadingTheBody(t *testing.T) {
-	e := newEndpoint(t, false)
+	e := newEndpoint(t)
 	// The body never ends, so the response only arrives if the server
 	// answers without reading it.
 	body, writer := io.Pipe()
@@ -138,7 +148,7 @@ func TestRequestWithAnInvalidKeyIsRejectedWithoutReadingTheBody(t *testing.T) {
 }
 
 func TestInvalidEventRejectsTheWholeBatch(t *testing.T) {
-	e := newEndpoint(t, false)
+	e := newEndpoint(t)
 	_, key := createProject(t, e)
 	missingSDK := `{"event_id":"0190b7a4-7c1e-7000-8000-000000000002","timestamp":"2026-11-27T10:00:00.000Z","platform":"javascript","exceptions":[{"type":"TypeError"}]}`
 
@@ -156,7 +166,7 @@ func TestInvalidEventRejectsTheWholeBatch(t *testing.T) {
 func TestValidFixturesAreAccepted(t *testing.T) {
 	for _, f := range loadFixtures(t, "valid") {
 		t.Run(f.Name, func(t *testing.T) {
-			e := newEndpoint(t, false)
+			e := newEndpoint(t)
 			_, key := createProject(t, e)
 
 			status, body := postBody(t, e, key, string(f.Body))
@@ -171,7 +181,7 @@ func TestValidFixturesAreAccepted(t *testing.T) {
 func TestInvalidFixturesAreRejectedWithTheirCode(t *testing.T) {
 	for _, f := range loadFixtures(t, "invalid") {
 		t.Run(f.Name, func(t *testing.T) {
-			e := newEndpoint(t, false)
+			e := newEndpoint(t)
 			_, key := createProject(t, e)
 
 			status, body := postBody(t, e, key, string(f.Body))
@@ -208,15 +218,57 @@ func TestInvalidFixturesAreRejectedWithTheirCode(t *testing.T) {
 	}
 }
 
-// newEndpoint serves the ingest endpoint until the test ends. With process,
-// its queue processes Events into Issues; without it, they stay queued.
-func newEndpoint(t *testing.T, process bool) *endpoint {
+// option changes how newEndpoint sets up the endpoint.
+type option func(*setup)
+
+// setup is what newEndpoint builds the endpoint from.
+type setup struct {
+	process bool
+	config  ingest.Config
+	logs    io.Writer
+}
+
+// withProcess makes the queue process Events into Issues; without it, they
+// stay queued.
+func withProcess() option {
+	return func(s *setup) { s.process = true }
+}
+
+// withRateLimit sets the default rate limit, in Events/s, of every Project.
+func withRateLimit(rate float64) option {
+	return func(s *setup) { s.config.RateLimit = rate }
+}
+
+// withMaxPending sets the largest backlog of the queue.
+func withMaxPending(n int) option {
+	return func(s *setup) { s.config.MaxPending = n }
+}
+
+// withLogs makes the endpoint write its logs to w as JSON records, and report
+// its rejections every interval.
+func withLogs(w io.Writer, interval time.Duration) option {
+	return func(s *setup) {
+		s.logs = w
+		s.config.ReportInterval = interval
+	}
+}
+
+// newEndpoint serves the ingest endpoint until the test ends.
+func newEndpoint(t *testing.T, options ...option) *endpoint {
 	t.Helper()
 
-	s := openStore(t)
+	var o setup
+	for _, option := range options {
+		option(&o)
+	}
 	logger := slog.New(slog.DiscardHandler)
+	if o.logs != nil {
+		logger = slog.New(slog.NewJSONHandler(o.logs, nil))
+	}
+
+	s := openStore(t)
 	config := queue.Config{DB: s.Ingest, Logger: logger}
-	if process {
+	if o.process {
 		p := ingest.NewProcess(logger)
 		config.Process = func(ctx context.Context, event []byte) error {
 			_, err := p(ctx, s.Data, event)
@@ -230,7 +282,12 @@ func newEndpoint(t *testing.T, process bool) *endpoint {
 	t.Cleanup(func() { _ = q.Close(context.Background()) })
 
 	p := projects.New(s.Data)
-	server := httptest.NewServer(ingest.NewHandler(p, q, logger))
+	o.config.Projects = p
+	o.config.Queue = q
+	o.config.Logger = logger
+	handler := ingest.NewHandler(o.config)
+	t.Cleanup(handler.Close)
+	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 
 	return &endpoint{
@@ -238,6 +295,7 @@ func newEndpoint(t *testing.T, process bool) *endpoint {
 		Client:   &http.Client{Timeout: timeout},
 		Projects: p,
 		Queue:    q,
+		Store:    s,
 		Data:     s.Data,
 	}
 }
@@ -266,13 +324,37 @@ func postEvents(t *testing.T, e *endpoint, key string, events ...string) (int, s
 func postBody(t *testing.T, e *endpoint, key, body string) (int, string) {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, e.URL, strings.NewReader(body))
+	headers := map[string]string{}
+	if key != "" {
+		headers["X-Trace-Ingest-Key"] = key
+	}
+	res, got := send(t, e, request{Headers: headers, Body: strings.NewReader(body)})
+	return res.StatusCode, got
+}
+
+// send sends r to the endpoint and returns the response with its body read.
+func send(t *testing.T, e *endpoint, r request) (*http.Response, string) {
+	t.Helper()
+
+	method := r.Method
+	if method == "" {
+		method = http.MethodPost
+	}
+	url := e.URL
+	if r.Query != "" {
+		url += "?" + r.Query
+	}
+	req, err := http.NewRequestWithContext(t.Context(), method, url, r.Body)
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if key != "" {
-		req.Header.Set("X-Trace-Ingest-Key", key)
+	for name, value := range r.Headers {
+		if value == "" {
+			req.Header.Del(name)
+			continue
+		}
+		req.Header.Set(name, value)
 	}
 
 	res, err := e.Client.Do(req)
@@ -284,7 +366,7 @@ func postBody(t *testing.T, e *endpoint, key, body string) (int, string) {
 	if err != nil {
 		t.Fatalf("read body: %v", err)
 	}
-	return res.StatusCode, string(got)
+	return res, string(got)
 }
 
 func waitPending(t *testing.T, q *queue.Queue, want int) {
@@ -353,4 +435,23 @@ func openStore(t *testing.T) *store.Store {
 		t.Fatalf("migrate: %v", err)
 	}
 	return s
+}
+
+// eventID returns the n-th event_id of a test.
+func eventID(n int) string {
+	return fmt.Sprintf("0190b7a4-7c1e-7000-8000-%012d", n)
+}
+
+// assertError fails unless res is an error response with status and code.
+func assertError(t *testing.T, res *http.Response, body string, status int, code string) {
+	t.Helper()
+
+	var got struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(body), &got); err != nil || res.StatusCode != status || got.Error.Code != code {
+		t.Errorf("response = %d %s, want %d %s", res.StatusCode, body, status, code)
+	}
 }

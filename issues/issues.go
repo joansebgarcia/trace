@@ -35,6 +35,20 @@ type Issue struct {
 	EventCount int
 }
 
+// Event is one processed Event as stored.
+type Event struct {
+	// ID is a UUIDv7.
+	ID         string
+	IssueID    string
+	ReceivedAt time.Time
+	// GroupingVersion is the version of the Group Key algorithm that
+	// grouped the Event, and GroupComponents the readable components of its
+	// Group Key: why it belongs to its Issue.
+	GroupingVersion int
+	GroupComponents []string
+	Event           event.Event
+}
+
 // Record stores event, received at receivedAt for the Project projectID, and
 // adds it to its Issue, creating the Issue if it is the first of its Group
 // Key. It does it all in one transaction, and does nothing for an event_id
@@ -104,6 +118,36 @@ func List(ctx context.Context, data *store.DB, projectID string) ([]Issue, error
 		issues = append(issues, issue)
 	}
 	return issues, rows.Err()
+}
+
+// ListEvents returns the Events of the Project projectID, oldest first.
+func ListEvents(ctx context.Context, data *store.DB, projectID string) ([]Event, error) {
+	rows, err := data.Read.QueryContext(ctx, "SELECT id, issue_id, received_at, grouping_version, group_components, payload FROM events WHERE project_id = ? ORDER BY rowid", projectID)
+	if err != nil {
+		return nil, fmt.Errorf("list Events: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var events []Event
+	for rows.Next() {
+		var e Event
+		var receivedAt, components string
+		var payload []byte
+		if err := rows.Scan(&e.ID, &e.IssueID, &receivedAt, &e.GroupingVersion, &components, &payload); err != nil {
+			return nil, fmt.Errorf("list Events: %w", err)
+		}
+		if e.ReceivedAt, err = time.Parse(time.RFC3339Nano, receivedAt); err != nil {
+			return nil, fmt.Errorf("decode received_at: %w", err)
+		}
+		if err := json.Unmarshal([]byte(components), &e.GroupComponents); err != nil {
+			return nil, fmt.Errorf("decode group components: %w", err)
+		}
+		if err := json.Unmarshal(payload, &e.Event); err != nil {
+			return nil, fmt.Errorf("decode Event: %w", err)
+		}
+		events = append(events, e)
+	}
+	return events, rows.Err()
 }
 
 func title(event event.Event) string {

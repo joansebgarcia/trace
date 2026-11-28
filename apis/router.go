@@ -67,7 +67,7 @@ func (n *notFoundWriter) Write(p []byte) (int, error) {
 func NewRouter(logger *slog.Logger, proxies []netip.Prefix, ping func(context.Context) error, stopping *atomic.Bool, q *queue.Queue, events http.Handler, ui fs.FS) http.Handler {
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/health", serveHealth(logger, ping))
-	api.Handle("POST "+ingest.Path, events)
+	api.Handle(ingest.Path, events)
 	routeBench(api, q)
 
 	routes := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
