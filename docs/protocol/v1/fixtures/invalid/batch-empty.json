@@ -1,0 +1,7 @@
+{
+  "description": "events holds at least 1 Event",
+  "code": "invalid_event",
+  "body": {
+    "events": []
+  }
+}

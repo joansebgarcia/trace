@@ -1,8 +1,10 @@
 package event_test
 
 import (
+	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/joansgarcia/trace/event"
@@ -28,5 +30,36 @@ func TestInvalidEventRejectsTheWholeBatch(t *testing.T) {
 	}
 	if !reflect.DeepEqual(*batchErr, want) {
 		t.Errorf("err = %+v, want %+v", *batchErr, want)
+	}
+}
+
+func TestDecodeBatchAppliesDefaults(t *testing.T) {
+	events, err := event.DecodeBatch([]byte(`{"events":[` + valid + `]}`))
+	if err != nil {
+		t.Fatalf("decode batch: %v", err)
+	}
+
+	if got := events[0].Level; got != event.LevelError {
+		t.Errorf("level = %q, want %q", got, event.LevelError)
+	}
+	if got := events[0].Environment; got != "production" {
+		t.Errorf("environment = %q, want %q", got, "production")
+	}
+}
+
+func TestDecodeBatchKeepsTheTimestampAsSent(t *testing.T) {
+	sent := `{"event_id":"0190b7a4-7c1e-7000-8000-000000000001","timestamp":"2026-11-27T10:00:00.100+00:00","platform":"javascript","sdk":{"name":"trace-js","version":"0.1.0"},"exceptions":[{"type":"TypeError"}]}`
+
+	events, err := event.DecodeBatch([]byte(`{"events":[` + sent + `]}`))
+	if err != nil {
+		t.Fatalf("decode batch: %v", err)
+	}
+
+	encoded, err := json.Marshal(events[0])
+	if err != nil {
+		t.Fatalf("encode Event: %v", err)
+	}
+	if want := `"timestamp":"2026-11-27T10:00:00.100+00:00"`; !strings.Contains(string(encoded), want) {
+		t.Errorf("encoded Event = %s, want it to hold %s", encoded, want)
 	}
 }
