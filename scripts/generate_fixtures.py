@@ -1,9 +1,9 @@
 """Writes the conformance fixtures of the ingest protocol v1.
 
-The JSON files in fixtures/ are the contract; this script only saves writing
+The JSON files in docs/protocol/v1/fixtures/ are the contract; this script only saves writing
 the large ones by hand. Edit it, then run from anywhere:
 
-    python3 docs/protocol/v1/generate_fixtures.py
+    python3 scripts/generate_fixtures.py
 
 It rewrites every fixture it defines; delete a fixture file by hand when you
 remove its definition.
@@ -11,7 +11,7 @@ remove its definition.
 import json
 import os
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "protocol", "v1", "fixtures")
 
 # DROP removes a field from an Event or a Breadcrumb.
 def event(n=1, **fields):

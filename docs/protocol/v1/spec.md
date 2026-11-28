@@ -182,4 +182,4 @@ An SDK MUST follow these rules:
 - An invalid fixture MUST get `400` with `code`. When one Event breaks the protocol, `index` is the only index in `details`; without `index`, `details` is empty.
 - Every valid body matches `event.schema.json#/$defs/batch`, and every invalid one breaks it, except those with `beyond_schema`, which explains the rule the schema cannot express.
 
-[`generate_fixtures.py`](generate_fixtures.py) writes the fixtures. The JSON files are the contract; edit the script and run it to change them.
+[`scripts/generate_fixtures.py`](../../../scripts/generate_fixtures.py) writes the fixtures. The JSON files are the contract; edit the script and run it to change them.
