@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 const (
@@ -82,6 +83,13 @@ func Open(dir string) (*Store, error) {
 	}
 
 	return &Store{Ingest: ingest, Data: data, dir: dir, lock: lock}, nil
+}
+
+// IsFull reports whether err comes from a file that cannot grow, as on a
+// full disk.
+func IsFull(err error) bool {
+	var sqliteErr *sqlite.Error
+	return errors.As(err, &sqliteErr) && sqliteErr.Code()&0xff == sqlite3.SQLITE_FULL
 }
 
 func (s *Store) Ping(ctx context.Context) error {

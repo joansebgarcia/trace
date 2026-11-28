@@ -12,6 +12,7 @@ import (
 	"mime"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/joansgarcia/trace/event"
@@ -41,6 +42,8 @@ const (
 	maxBody = 1 << 20
 	// overloadedRetry is the Retry-After, in seconds, of an overloaded queue.
 	overloadedRetry = 5
+	// defaultReportInterval is how often the rejections are logged.
+	defaultReportInterval = time.Minute
 	// preflightMaxAge is how long, in seconds, a browser may cache a
 	// preflight.
 	preflightMaxAge = "86400"
@@ -93,9 +96,13 @@ type Config struct {
 // Handler serves the ingest endpoint. Close stops it once the server no
 // longer serves it.
 type Handler struct {
-	config  Config
-	logger  *slog.Logger
-	limiter *limiter
+	config     Config
+	logger     *slog.Logger
+	limiter    *limiter
+	rejections *rejections
+	stop       chan struct{}
+	reported   chan struct{}
+	closeOnce  sync.Once
 }
 
 // message is one accepted Event as it waits in the queue.
@@ -123,7 +130,19 @@ func NewHandler(config Config) *Handler {
 	if config.MaxPending == 0 {
 		config.MaxPending = DefaultMaxPending
 	}
-	return &Handler{config: config, logger: logger, limiter: newLimiter()}
+	if config.ReportInterval == 0 {
+		config.ReportInterval = defaultReportInterval
+	}
+	h := &Handler{
+		config:     config,
+		logger:     logger,
+		limiter:    newLimiter(),
+		rejections: &rejections{},
+		stop:       make(chan struct{}),
+		reported:   make(chan struct{}),
+	}
+	go h.report(config.ReportInterval)
+	return h
 }
 
 // ServeHTTP answers the CORS preflight of the endpoint and accepts batches
@@ -144,116 +163,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Close stops the endpoint.
-func (h *Handler) Close() {}
-
-// accept runs a batch through the steps of the endpoint, in order: the
-// Ingest Key, the media type, a first check of the rate limit, the body
-// limits, the validation, the Redaction, the rate limit of the batch, and
-// the commit to the queue. Nothing unredacted reaches the
-// queue, and nothing of the client but the Events: not its IP.
-func (h *Handler) accept(w http.ResponseWriter, r *http.Request) {
-	key, conflict := readKey(r)
-	switch {
-	case conflict:
-		reject(w, http.StatusBadRequest, apiError{Code: codeKeyConflict, Message: "the " + keyHeader + " header and the " + keyParam + " parameter carry different keys"})
-		return
-	case key == "":
-		reject(w, http.StatusUnauthorized, apiError{Code: codeKeyMissing, Message: "the " + keyHeader + " header or the " + keyParam + " parameter is required"})
-		return
-	}
-	project, ok, err := h.config.Projects.Resolve(r.Context(), key)
-	if err != nil {
-		h.logger.Error("resolve ingest key failed", "err", err)
-		reject(w, http.StatusInternalServerError, apiError{Code: codeInternal, Message: "the server failed to resolve the ingest key"})
-		return
-	}
-	if !ok {
-		reject(w, http.StatusUnauthorized, apiError{Code: codeKeyInvalid, Message: "the ingest key is unknown or revoked"})
-		return
-	}
-
-	if !isSupported(r) {
-		reject(w, http.StatusUnsupportedMediaType, apiError{Code: codeUnsupportedMedia, Message: "the body must be application/json or text/plain, optionally gzip"})
-		return
-	}
-
-	rate := h.config.RateLimit
-	if project.RateLimit > 0 {
-		rate = project.RateLimit
-	}
-	// A Project without a token left is refused before its body is read.
-	if ok, wait := h.limiter.check(project.ID, rate, 1, time.Now()); !ok {
-		h.rateLimited(w, wait, true)
-		return
-	}
-
-	body, err := readBody(w, r)
-	switch {
-	case errors.Is(err, errTooLarge):
-		reject(w, http.StatusRequestEntityTooLarge, apiError{Code: codeTooLarge, Message: "the body exceeds " + strconv.Itoa(maxSent) + " bytes as sent or " + strconv.Itoa(maxBody) + " bytes decompressed"})
-		return
-	case err != nil:
-		reject(w, http.StatusBadRequest, apiError{Code: codeInvalidEvent, Message: "the body could not be read"})
-		return
-	}
-
-	events, err := event.DecodeBatch(body)
-	if err != nil {
-		var batchErr *event.BatchError
-		errors.As(err, &batchErr)
-		status, code := http.StatusBadRequest, codeInvalidEvent
-		if batchErr.TooLarge {
-			status, code = http.StatusRequestEntityTooLarge, codeTooLarge
-		}
-		writeError(w, status, apiError{Code: code, Message: batchErr.Message, Details: batchErr.Details})
-		return
-	}
-	for i := range events {
-		events[i] = redaction.Apply(events[i], project.RedactionTerms)
-	}
-
-	// Duplicates count too: the rate limit counts the Events sent.
-	if ok, wait := h.limiter.take(project.ID, rate, len(events), time.Now()); !ok {
-		h.rateLimited(w, wait, false)
-		return
-	}
-
-	payloads, err := encode(project.ID, time.Now().UTC(), events)
-	if err != nil {
-		h.logger.Error("encode Events failed", "project_id", project.ID, "err", err)
-		writeError(w, http.StatusInternalServerError, apiError{Code: codeInternal, Message: "the server failed to accept the Events"})
-		return
-	}
-	err = h.config.Queue.Enqueue(r.Context(), payloads)
-	if err != nil {
-		h.limiter.give(project.ID, len(events))
-	}
-	switch {
-	case err == nil:
-		writeJSON(w, http.StatusAccepted, map[string]int{"accepted": len(events)})
-	case errors.Is(err, queue.ErrOverloaded):
-		w.Header().Set("Retry-After", strconv.Itoa(overloadedRetry))
-		writeError(w, http.StatusServiceUnavailable, apiError{Code: codeOverloaded, Message: "the server is overloaded; retry later"})
-	case errors.Is(err, queue.ErrStopped):
-		w.Header().Set("Retry-After", strconv.Itoa(overloadedRetry))
-		writeError(w, http.StatusServiceUnavailable, apiError{Code: codeShuttingDown, Message: "the server is shutting down"})
-	default:
-		h.logger.Error("enqueue Events failed", "project_id", project.ID, "err", err)
-		writeError(w, http.StatusInternalServerError, apiError{Code: codeInternal, Message: "the server failed to accept the Events"})
-	}
-}
-
-// rateLimited answers 429 with the wait, in whole seconds, until the batch
-// fits; unread means the body was not read.
-func (h *Handler) rateLimited(w http.ResponseWriter, wait time.Duration, unread bool) {
-	w.Header().Set("Retry-After", strconv.Itoa(retrySeconds(wait)))
-	e := apiError{Code: codeRateLimited, Message: "the Project sent more Events than its rate limit allows"}
-	if unread {
-		reject(w, http.StatusTooManyRequests, e)
-		return
-	}
-	writeError(w, http.StatusTooManyRequests, e)
+// Close stops logging the rejections, after logging those not yet logged.
+// Call it once the server no longer serves the endpoint.
+func (h *Handler) Close() {
+	h.closeOnce.Do(func() {
+		close(h.stop)
+		<-h.reported
+	})
 }
 
 // NewProcess returns the function that processes a queued Event into its
@@ -278,6 +194,165 @@ func NewProcess(logger *slog.Logger) func(ctx context.Context, data *store.DB, p
 			return nil, nil
 		}
 		return []hub.Change{{Kind: changeKinds[change.Kind], ProjectID: m.ProjectID, IssueID: change.IssueID}}, nil
+	}
+}
+
+// accept runs a batch through the steps of the endpoint, in order: the
+// Ingest Key, the media type, a first check of the rate limit and the
+// backlog, the body limits, the validation, the Redaction, the rate limit
+// of the batch, the backlog again, and the commit to the queue. Nothing
+// unredacted reaches the queue, and nothing of the client but its Events:
+// not its IP.
+func (h *Handler) accept(w http.ResponseWriter, r *http.Request) {
+	key, conflict := readKey(r)
+	switch {
+	case conflict:
+		reject(w, http.StatusBadRequest, apiError{Code: codeKeyConflict, Message: "the " + keyHeader + " header and the " + keyParam + " parameter carry different keys"})
+		return
+	case key == "":
+		reject(w, http.StatusUnauthorized, apiError{Code: codeKeyMissing, Message: "the " + keyHeader + " header or the " + keyParam + " parameter is required"})
+		return
+	}
+	project, ok, err := h.config.Projects.Resolve(r.Context(), key)
+	if err != nil {
+		h.logger.Error("resolve ingest key failed", "err", err)
+		reject(w, http.StatusInternalServerError, apiError{Code: codeInternal, Message: "the server failed to resolve the ingest key"})
+		return
+	}
+	if !ok {
+		reject(w, http.StatusUnauthorized, apiError{Code: codeKeyInvalid, Message: "the ingest key is unknown or revoked"})
+		return
+	}
+
+	if !isSupported(r) {
+		h.fail(w, project.ID, http.StatusUnsupportedMediaType, apiError{Code: codeUnsupportedMedia, Message: "the body must be application/json or text/plain, optionally gzip"}, true)
+		return
+	}
+
+	rate := h.config.RateLimit
+	if project.RateLimit > 0 {
+		rate = project.RateLimit
+	}
+	// A Project without a token left, or a full backlog, is refused before
+	// the body is read.
+	if ok, wait := h.limiter.check(project.ID, rate, 1, time.Now()); !ok {
+		h.rateLimited(w, project.ID, wait, true)
+		return
+	}
+	if h.config.Queue.Pending() >= h.config.MaxPending {
+		h.overloaded(w, project.ID, true)
+		return
+	}
+
+	body, err := readBody(w, r)
+	switch {
+	case errors.Is(err, errTooLarge):
+		h.fail(w, project.ID, http.StatusRequestEntityTooLarge, apiError{Code: codeTooLarge, Message: "the body exceeds " + strconv.Itoa(maxSent) + " bytes as sent or " + strconv.Itoa(maxBody) + " bytes decompressed"}, true)
+		return
+	case err != nil:
+		h.fail(w, project.ID, http.StatusBadRequest, apiError{Code: codeInvalidEvent, Message: "the body could not be read"}, true)
+		return
+	}
+
+	events, err := event.DecodeBatch(body)
+	if err != nil {
+		var batchErr *event.BatchError
+		errors.As(err, &batchErr)
+		status, code := http.StatusBadRequest, codeInvalidEvent
+		if batchErr.TooLarge {
+			status, code = http.StatusRequestEntityTooLarge, codeTooLarge
+		}
+		h.fail(w, project.ID, status, apiError{Code: code, Message: batchErr.Message, Details: batchErr.Details}, false)
+		return
+	}
+	for i := range events {
+		events[i] = redaction.Apply(events[i], project.RedactionTerms)
+	}
+
+	// Duplicates count too: the rate limit counts the Events sent.
+	if ok, wait := h.limiter.take(project.ID, rate, len(events), time.Now()); !ok {
+		h.rateLimited(w, project.ID, wait, false)
+		return
+	}
+	if h.config.Queue.Pending()+len(events) > h.config.MaxPending {
+		h.limiter.give(project.ID, len(events))
+		h.overloaded(w, project.ID, false)
+		return
+	}
+
+	payloads, err := encode(project.ID, time.Now().UTC(), events)
+	if err != nil {
+		h.limiter.give(project.ID, len(events))
+		h.logger.Error("encode Events failed", "project_id", project.ID, "err", err)
+		h.fail(w, project.ID, http.StatusInternalServerError, apiError{Code: codeInternal, Message: "the server failed to accept the Events"}, false)
+		return
+	}
+	err = h.config.Queue.Enqueue(r.Context(), payloads)
+	if err != nil {
+		h.limiter.give(project.ID, len(events))
+	}
+	switch {
+	case err == nil:
+		writeJSON(w, http.StatusAccepted, map[string]int{"accepted": len(events)})
+	case errors.Is(err, queue.ErrOverloaded), errors.Is(err, queue.ErrFull):
+		if errors.Is(err, queue.ErrFull) {
+			h.logger.Error("ingest.db is full", "project_id", project.ID, "err", err)
+		}
+		h.overloaded(w, project.ID, false)
+	case errors.Is(err, queue.ErrStopped):
+		w.Header().Set("Retry-After", strconv.Itoa(overloadedRetry))
+		h.fail(w, project.ID, http.StatusServiceUnavailable, apiError{Code: codeShuttingDown, Message: "the server is shutting down"}, false)
+	default:
+		h.logger.Error("enqueue Events failed", "project_id", project.ID, "err", err)
+		h.fail(w, project.ID, http.StatusInternalServerError, apiError{Code: codeInternal, Message: "the server failed to accept the Events"}, false)
+	}
+}
+
+// rateLimited answers 429 with the wait, in whole seconds, until the batch
+// fits.
+func (h *Handler) rateLimited(w http.ResponseWriter, projectID string, wait time.Duration, unread bool) {
+	w.Header().Set("Retry-After", strconv.Itoa(retrySeconds(wait)))
+	h.fail(w, projectID, http.StatusTooManyRequests, apiError{Code: codeRateLimited, Message: "the Project sent more Events than its rate limit allows"}, unread)
+}
+
+// overloaded answers 503 ingest_overloaded.
+func (h *Handler) overloaded(w http.ResponseWriter, projectID string, unread bool) {
+	w.Header().Set("Retry-After", strconv.Itoa(overloadedRetry))
+	h.fail(w, projectID, http.StatusServiceUnavailable, apiError{Code: codeOverloaded, Message: "the server is overloaded; retry later"}, unread)
+}
+
+// fail counts a rejection of the Project projectID and writes it; unread
+// means the body was not read whole, so the connection closes.
+func (h *Handler) fail(w http.ResponseWriter, projectID string, status int, e apiError, unread bool) {
+	h.rejections.add(projectID, e.Code)
+	if unread {
+		reject(w, status, e)
+		return
+	}
+	writeError(w, status, e)
+}
+
+// report logs the rejections every interval, and once more on Close.
+func (h *Handler) report(interval time.Duration) {
+	defer close(h.reported)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			h.logRejections()
+		case <-h.stop:
+			h.logRejections()
+			return
+		}
+	}
+}
+
+// logRejections logs the rejections counted since the last call, if any.
+func (h *Handler) logRejections() {
+	if counts := h.rejections.take(); len(counts) > 0 {
+		h.logger.Warn("ingest rejections", "rejections", counts)
 	}
 }
 

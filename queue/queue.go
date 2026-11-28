@@ -28,6 +28,12 @@ const (
 	// after each failure, up to maxRetryDelay.
 	retryDelay    = 100 * time.Millisecond
 	maxRetryDelay = 30 * time.Second
+	// requestBuffer is the number of calls to Enqueue the writer holds
+	// while it commits.
+	requestBuffer = 64
+	// admitWait is how long Enqueue waits for the writer to hold its call
+	// before it fails with ErrOverloaded.
+	admitWait = 25 * time.Millisecond
 	// defaultCapacity is the capacity when Config.Capacity is 0: 25 group
 	// commits of commitSize.
 	defaultCapacity = 5000
@@ -35,8 +41,12 @@ const (
 
 var (
 	// ErrOverloaded is returned by Enqueue when the writer cannot keep up:
-	// accepting the Events would exceed Config.Capacity.
+	// accepting the Events would exceed Config.Capacity, or the writer does
+	// not admit them within admitWait.
 	ErrOverloaded = errors.New("queue is overloaded")
+	// ErrFull is returned by Enqueue when ingest.db cannot grow, as on a
+	// full disk. The Events are not stored.
+	ErrFull = errors.New("queue is full")
 	// ErrStopped is returned by Enqueue once the queue is closing.
 	ErrStopped = errors.New("queue is shutting down")
 
@@ -120,7 +130,7 @@ func New(config Config) (*Queue, error) {
 	q := &Queue{
 		config:     config,
 		logger:     logger,
-		requests:   make(chan *request),
+		requests:   make(chan *request, requestBuffer),
 		jobs:       make(chan job),
 		wake:       make(chan struct{}, 1),
 		stop:       make(chan struct{}),
@@ -152,8 +162,8 @@ func New(config Config) (*Queue, error) {
 }
 
 // Enqueue stores events and returns once they are committed to ingest.db. It
-// fails with ErrOverloaded if the writer cannot keep up and with ErrStopped
-// once the queue is closing. If ctx ends first, the Events may still be
+// fails with ErrOverloaded if the writer cannot keep up, with ErrFull if
+// ingest.db cannot grow, and with ErrStopped once the queue is closing. If ctx ends first, the Events may still be
 // committed.
 func (q *Queue) Enqueue(ctx context.Context, events [][]byte) error {
 	if len(events) == 0 {
@@ -234,9 +244,13 @@ func (q *Queue) send(ctx context.Context, r *request) error {
 	if q.closed {
 		return ErrStopped
 	}
+	timer := time.NewTimer(admitWait)
+	defer timer.Stop()
 	select {
 	case q.requests <- r:
 		return nil
+	case <-timer.C:
+		return ErrOverloaded
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -267,6 +281,9 @@ func (q *Queue) write() {
 		timer.Stop()
 
 		err := q.commit(batch, size)
+		if store.IsFull(err) {
+			err = fmt.Errorf("%w: %w", ErrFull, err)
+		}
 		q.waiting.Add(-int64(size))
 		if err == nil {
 			q.notify()

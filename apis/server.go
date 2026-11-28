@@ -181,13 +181,14 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	s.stopping.Store(true)
 
 	queueErr := s.queue.Close(ctx)
-	s.ingest.Close()
 	s.hub.Close()
 	serverErr := s.server.Shutdown(ctx)
 	if serverErr != nil {
 		// Cut the requests still in flight before their files close.
 		serverErr = errors.Join(serverErr, s.server.Close())
 	}
+	// Once no request is in flight, the last rejections are logged.
+	s.ingest.Close()
 	err := errors.Join(queueErr, serverErr, s.store.Checkpoint(ctx), s.store.Close())
 	if err != nil {
 		s.logger.Error("shutdown incomplete; queued Events are processed on the next start", "err", err)
