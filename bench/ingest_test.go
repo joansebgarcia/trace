@@ -17,7 +17,7 @@ import (
 const timeout = 5 * time.Second
 
 func TestBuiltEventsAreValidAndUnique(t *testing.T) {
-	newBody := bodyBuilder(2048)
+	newBody := buildBodies(2048)
 
 	first, second := newBody(), newBody()
 
@@ -50,7 +50,7 @@ func TestPreparedDirectoryAcceptsTheLoad(t *testing.T) {
 		_ = s.Shutdown(ctx)
 	})
 
-	req, err := newRequest(t.Context(), "http://"+s.Addr()+ingestPath, key, bodyBuilder(2048)())
+	req, err := newRequest(t.Context(), "http://"+s.Addr()+ingestPath, key, buildBodies(2048)())
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}

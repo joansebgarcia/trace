@@ -247,7 +247,7 @@ func benchmark(o options) (bool, error) {
 		return false, err
 	}
 
-	newBody := bodyBuilder(o.eventSize)
+	newBody := buildBodies(o.eventSize)
 	if o.warmup > 0 {
 		load(client, base, key, newBody, o.rate, o.warmup)
 	}
@@ -374,10 +374,10 @@ func newRequest(ctx context.Context, url, key string, body []byte) (*http.Reques
 	return req, nil
 }
 
-// bodyBuilder returns a function that returns a batch of one Event of about
+// buildBodies returns a function that returns a batch of one Event of about
 // size bytes, shaped like one an SDK sends, with a new event_id each call.
 // The Events share their stack, so they group into one Issue.
-func bodyBuilder(size int) func() []byte {
+func buildBodies(size int) func() []byte {
 	inApp, dependency := true, false
 	frame := func(i int, in *bool) map[string]any {
 		return map[string]any{"function": fmt.Sprintf("handler%d", i), "filename": "https://shop.example.com/assets/app-3f2a1b9c.js", "lineno": 10 + i, "colno": 7, "in_app": in}
@@ -431,7 +431,7 @@ func printReport(w io.Writer, o options, target Target, s Summary, reasons map[s
 	fmt.Fprintf(&b, "## Benchmark: ingest endpoint\n\n")
 	fmt.Fprintf(&b, "| | |\n|---|---|\n")
 	fmt.Fprintf(&b, "| Target | %.0f Events/s, p99 < %s |\n", target.Rate, target.P99)
-	fmt.Fprintf(&b, "| Run | %s at %.0f Events/s after %s warmup, %d-byte Events |\n", o.duration, o.rate, o.warmup, len(bodyBuilder(o.eventSize)()))
+	fmt.Fprintf(&b, "| Run | %s at %.0f Events/s after %s warmup, %d-byte Events |\n", o.duration, o.rate, o.warmup, len(buildBodies(o.eventSize)()))
 	fmt.Fprintf(&b, "| Accepted | %d (%.1f Events/s) |\n", s.Accepted, s.Rate)
 	fmt.Fprintf(&b, "| Failed | %d |\n", s.Failed)
 	fmt.Fprintf(&b, "| p50 | %s |\n", s.P50.Round(10*time.Microsecond))

@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/joansgarcia/trace/event"
+	"github.com/joansgarcia/trace/hub"
 	"github.com/joansgarcia/trace/issues"
 	"github.com/joansgarcia/trace/migrations"
 	"github.com/joansgarcia/trace/projects"
@@ -72,7 +73,7 @@ func TestResentEventIsNotCountedAgain(t *testing.T) {
 		t.Fatalf("record again: %v", err)
 	}
 
-	if change != (issues.Change{}) {
+	if change != (hub.Change{}) {
 		t.Errorf("change = %+v, want none for a resent Event", change)
 	}
 	if got := listIssues(t, data, projectID); len(got) != 1 || got[0].EventCount != 1 {

@@ -138,7 +138,7 @@ func TestManualTransitionsAreRecorded(t *testing.T) {
 	setStatus(t, e, created.ID, issues.StatusIgnored)
 	ignored := listIssues(t, e, project.ID)[0]
 	setStatus(t, e, created.ID, issues.StatusOpen)
-	reopened := listIssues(t, e, project.ID)[0]
+	opened := listIssues(t, e, project.ID)[0]
 
 	if resolved.Status != issues.StatusResolved || resolved.ResolvedAt.IsZero() || !resolved.StatusChangedAt.Equal(resolved.ResolvedAt) {
 		t.Errorf("resolved: %s at %s, changed at %s; want resolved now", resolved.Status, resolved.ResolvedAt, resolved.StatusChangedAt)
@@ -146,8 +146,8 @@ func TestManualTransitionsAreRecorded(t *testing.T) {
 	if ignored.Status != issues.StatusIgnored || !ignored.StatusChangedAt.After(resolved.StatusChangedAt) || !ignored.ResolvedAt.Equal(resolved.ResolvedAt) {
 		t.Errorf("ignored: %s, changed at %s, resolved at %s; want a later change that keeps resolved_at", ignored.Status, ignored.StatusChangedAt, ignored.ResolvedAt)
 	}
-	if reopened.Status != issues.StatusOpen || !reopened.StatusChangedAt.After(ignored.StatusChangedAt) || !reopened.RegressedAt.IsZero() {
-		t.Errorf("reopened: %s, changed at %s, regressed at %s; want open by hand, not a Regression", reopened.Status, reopened.StatusChangedAt, reopened.RegressedAt)
+	if opened.Status != issues.StatusOpen || !opened.StatusChangedAt.After(ignored.StatusChangedAt) || !opened.RegressedAt.IsZero() {
+		t.Errorf("opened: %s, changed at %s, regressed at %s; want open by hand, not a Regression", opened.Status, opened.StatusChangedAt, opened.RegressedAt)
 	}
 }
 

@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/joansgarcia/trace/event"
+	"github.com/joansgarcia/trace/hub"
+	"github.com/joansgarcia/trace/projects"
 	"github.com/joansgarcia/trace/store"
 )
 
@@ -25,17 +27,7 @@ const (
 	StatusIgnored  Status = "ignored"
 )
 
-// The kinds of change Record makes to an Issue.
-const (
-	ChangeCreated   ChangeKind = "created"
-	ChangeUpdated   ChangeKind = "updated"
-	ChangeRegressed ChangeKind = "regressed"
-)
-
 var (
-	// ErrProjectNotFound is returned by Record for an Event whose Project
-	// no longer exists.
-	ErrProjectNotFound = errors.New("project not found")
 	// ErrNotFound is returned by SetStatus for an Issue that does not exist.
 	ErrNotFound = errors.New("issue not found")
 	// ErrInvalidStatus is returned by SetStatus for an unknown status.
@@ -48,15 +40,6 @@ var severity = []event.Level{event.LevelWarning, event.LevelError, event.LevelFa
 // Status is the lifecycle state of an Issue. It is global to its Project
 // and Group Key, across Environments and Releases.
 type Status string
-
-// ChangeKind is what an Event did to its Issue.
-type ChangeKind string
-
-// Change is the change Record made to an Issue.
-type Change struct {
-	Kind    ChangeKind
-	IssueID string
-}
 
 // Issue is a group of equivalent Events of a Project.
 type Issue struct {
@@ -104,47 +87,48 @@ type Event struct {
 
 // Record stores event, received at receivedAt for the Project projectID, and
 // applies it to its Issue in one transaction: it creates the Issue for the
-// first Event of a Group Key, updates its aggregates, and reopens it if it
-// was resolved, which is a Regression. An ignored Issue stays ignored.
+// first Event of a Group Key and updates its aggregates. An Event for a
+// resolved Issue is a Regression: the Issue goes back to open. An ignored
+// Issue stays ignored.
 //
 // Record does nothing for an event_id the Project already stored, so
 // recording an Event again is safe; it then returns a zero Change. It fails
-// with ErrProjectNotFound if the Project no longer exists.
-func Record(ctx context.Context, data *store.DB, projectID string, receivedAt time.Time, event event.Event) (Change, error) {
+// with projects.ErrNotFound if the Project no longer exists.
+func Record(ctx context.Context, data *store.DB, projectID string, receivedAt time.Time, event event.Event) (hub.Change, error) {
 	payload, err := json.Marshal(event)
 	if err != nil {
-		return Change{}, fmt.Errorf("encode Event: %w", err)
+		return hub.Change{}, fmt.Errorf("encode Event: %w", err)
 	}
 	key := ComputeGroupKey(event)
 	components, err := json.Marshal(key.Components)
 	if err != nil {
-		return Change{}, fmt.Errorf("encode Group Key components: %w", err)
+		return hub.Change{}, fmt.Errorf("encode Group Key components: %w", err)
 	}
 	now := receivedAt.UTC().Format(timeLayout)
 
 	tx, err := data.Write.BeginTx(ctx, nil)
 	if err != nil {
-		return Change{}, fmt.Errorf("begin record Event: %w", err)
+		return hub.Change{}, fmt.Errorf("begin record Event: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	var projects, stored int
-	if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM projects WHERE id = ?", projectID).Scan(&projects); err != nil {
-		return Change{}, fmt.Errorf("find Project: %w", err)
+	var projectCount, stored int
+	if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM projects WHERE id = ?", projectID).Scan(&projectCount); err != nil {
+		return hub.Change{}, fmt.Errorf("find Project: %w", err)
 	}
-	if projects == 0 {
-		return Change{}, ErrProjectNotFound
+	if projectCount == 0 {
+		return hub.Change{}, projects.ErrNotFound
 	}
 	if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM events WHERE project_id = ? AND event_id = ?", projectID, event.EventID).Scan(&stored); err != nil {
-		return Change{}, fmt.Errorf("find Event: %w", err)
+		return hub.Change{}, fmt.Errorf("find Event: %w", err)
 	}
 	if stored > 0 {
-		return Change{}, nil
+		return hub.Change{}, nil
 	}
 
 	change, err := applyEvent(ctx, tx, projectID, key.Hash, now, event)
 	if err != nil {
-		return Change{}, err
+		return hub.Change{}, err
 	}
 
 	_, err = tx.ExecContext(ctx, `
@@ -152,17 +136,17 @@ func Record(ctx context.Context, data *store.DB, projectID string, receivedAt ti
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		store.NewID(), projectID, event.EventID, change.IssueID, now, key.Version, string(components), payload)
 	if err != nil {
-		return Change{}, fmt.Errorf("insert Event: %w", err)
+		return hub.Change{}, fmt.Errorf("insert Event: %w", err)
 	}
 
 	if event.User != nil {
 		if err := countUser(ctx, tx, change.IssueID, event.User.ID); err != nil {
-			return Change{}, err
+			return hub.Change{}, err
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		return Change{}, fmt.Errorf("commit record Event: %w", err)
+		return hub.Change{}, fmt.Errorf("commit record Event: %w", err)
 	}
 	return change, nil
 }
@@ -271,7 +255,7 @@ func ListEvents(ctx context.Context, data *store.DB, projectID string) ([]Event,
 
 // applyEvent creates or updates the Issue of groupKey for e, received at
 // now, and returns what it did.
-func applyEvent(ctx context.Context, tx *sql.Tx, projectID, groupKey, now string, e event.Event) (Change, error) {
+func applyEvent(ctx context.Context, tx *sql.Tx, projectID, groupKey, now string, e event.Event) (hub.Change, error) {
 	var issueID, firstSeen, lastSeen string
 	var status Status
 	var level event.Level
@@ -284,18 +268,18 @@ func applyEvent(ctx context.Context, tx *sql.Tx, projectID, groupKey, now string
 			VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, 0, ?8, ?8, ?8)`,
 			issueID, projectID, groupKey, StatusOpen, title(e), culprit(e), e.Level, now)
 		if err != nil {
-			return Change{}, fmt.Errorf("insert Issue: %w", err)
+			return hub.Change{}, fmt.Errorf("insert Issue: %w", err)
 		}
-		return Change{Kind: ChangeCreated, IssueID: issueID}, nil
+		return hub.Change{Kind: hub.IssueCreated, ProjectID: projectID, IssueID: issueID}, nil
 	}
 	if err != nil {
-		return Change{}, fmt.Errorf("find Issue: %w", err)
+		return hub.Change{}, fmt.Errorf("find Issue: %w", err)
 	}
 
-	// Only a resolved Issue reopens: an ignored one stays ignored.
-	kind := ChangeUpdated
+	// Only a resolved Issue regresses: an ignored one stays ignored.
+	kind := hub.IssueUpdated
 	if status == StatusResolved {
-		kind = ChangeRegressed
+		kind = hub.IssueRegressed
 	}
 	_, err = tx.ExecContext(ctx, `
 		UPDATE issues SET
@@ -307,11 +291,11 @@ func applyEvent(ctx context.Context, tx *sql.Tx, projectID, groupKey, now string
 			status_changed_at = CASE WHEN ?5 THEN ?6 ELSE status_changed_at END,
 			regressed_at = CASE WHEN ?5 THEN ?6 ELSE regressed_at END
 		WHERE id = ?4`,
-		maxLevel(level, e.Level), min(firstSeen, now), max(lastSeen, now), issueID, kind == ChangeRegressed, now)
+		raiseLevel(level, e.Level), min(firstSeen, now), max(lastSeen, now), issueID, kind == hub.IssueRegressed, now)
 	if err != nil {
-		return Change{}, fmt.Errorf("update Issue: %w", err)
+		return hub.Change{}, fmt.Errorf("update Issue: %w", err)
 	}
-	return Change{Kind: kind, IssueID: issueID}, nil
+	return hub.Change{Kind: kind, ProjectID: projectID, IssueID: issueID}, nil
 }
 
 // countUser adds userID to the Users of the Issue issueID, once.
@@ -333,12 +317,12 @@ func countUser(ctx context.Context, tx *sql.Tx, issueID, userID string) error {
 	return nil
 }
 
-// maxLevel returns the more severe of a and b.
-func maxLevel(a, b event.Level) event.Level {
-	if slices.Index(severity, b) > slices.Index(severity, a) {
-		return b
+// raiseLevel returns level raised to incoming, if incoming is more severe.
+func raiseLevel(level, incoming event.Level) event.Level {
+	if slices.Index(severity, incoming) > slices.Index(severity, level) {
+		return incoming
 	}
-	return a
+	return level
 }
 
 // parseTime parses a stored time; empty is the zero time.

@@ -16,25 +16,25 @@ type rejections struct {
 // rejection is one Project and error code.
 type rejection struct {
 	ProjectID string
-	Code      string
+	Code      code
 }
 
 // rejectionCount is the number of rejections of a Project with a code, as
 // logged.
 type rejectionCount struct {
 	ProjectID string `json:"project_id"`
-	Code      string `json:"code"`
+	Code      code   `json:"code"`
 	Count     int    `json:"count"`
 }
 
-func (r *rejections) add(projectID, code string) {
+func (r *rejections) add(projectID string, c code) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if r.counts == nil {
 		r.counts = map[rejection]int{}
 	}
-	r.counts[rejection{ProjectID: projectID, Code: code}]++
+	r.counts[rejection{ProjectID: projectID, Code: c}]++
 }
 
 // take returns the counts since the last call, by Project and code, and

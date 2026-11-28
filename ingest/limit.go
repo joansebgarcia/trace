@@ -38,8 +38,8 @@ func (l *limiter) take(projectID string, rate float64, n int, now time.Time) (bo
 	defer l.mu.Unlock()
 
 	b := l.refill(projectID, rate, now)
-	if need := float64(n) - b.tokens; need > 0 {
-		return false, time.Duration(need / rate * float64(time.Second))
+	if wait := b.waitFor(n); wait > 0 {
+		return false, wait
 	}
 	b.tokens -= float64(n)
 	return true, 0
@@ -51,11 +51,8 @@ func (l *limiter) check(projectID string, rate float64, n int, now time.Time) (b
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	b := l.refill(projectID, rate, now)
-	if need := float64(n) - b.tokens; need > 0 {
-		return false, time.Duration(need / rate * float64(time.Second))
-	}
-	return true, 0
+	wait := l.refill(projectID, rate, now).waitFor(n)
+	return wait == 0, wait
 }
 
 // give returns n tokens taken from the bucket of projectID, for a batch the
@@ -65,7 +62,7 @@ func (l *limiter) give(projectID string, n int) {
 	defer l.mu.Unlock()
 
 	if b, ok := l.buckets[projectID]; ok {
-		b.tokens = min(b.tokens+float64(n), burst(b.rate))
+		b.tokens = min(b.tokens+float64(n), computeBurst(b.rate))
 	}
 }
 
@@ -74,22 +71,31 @@ func (l *limiter) give(projectID string, n int) {
 func (l *limiter) refill(projectID string, rate float64, now time.Time) *bucket {
 	b, ok := l.buckets[projectID]
 	if !ok {
-		b = &bucket{rate: rate, tokens: burst(rate), at: now}
+		b = &bucket{rate: rate, tokens: computeBurst(rate), at: now}
 		l.buckets[projectID] = b
 	}
 	elapsed := max(now.Sub(b.at).Seconds(), 0)
 	b.rate = rate
-	b.tokens = min(b.tokens+elapsed*rate, burst(rate))
+	b.tokens = min(b.tokens+elapsed*rate, computeBurst(rate))
 	b.at = now
 	return b
 }
 
-// burst returns the capacity of a bucket that refills at rate.
-func burst(rate float64) float64 {
+// waitFor returns how long b takes to hold n tokens; zero if it holds them.
+func (b *bucket) waitFor(n int) time.Duration {
+	need := float64(n) - b.tokens
+	if need <= 0 {
+		return 0
+	}
+	return time.Duration(need / b.rate * float64(time.Second))
+}
+
+// computeBurst returns the capacity of a bucket that refills at rate.
+func computeBurst(rate float64) float64 {
 	return max(rate*burstSeconds, event.MaxEvents)
 }
 
-// retrySeconds returns wait as a Retry-After: whole seconds, at least 1.
-func retrySeconds(wait time.Duration) int {
+// roundUpSeconds returns wait as a Retry-After: whole seconds, at least 1.
+func roundUpSeconds(wait time.Duration) int {
 	return max(int(math.Ceil(wait.Seconds())), 1)
 }

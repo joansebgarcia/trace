@@ -20,7 +20,7 @@ const (
 	IssueCreated Kind = "created"
 	// IssueUpdated is a later Event of an Issue.
 	IssueUpdated Kind = "updated"
-	// IssueRegressed is an Event that reopened a resolved Issue.
+	// IssueRegressed is a Regression: an Event for a resolved Issue.
 	IssueRegressed Kind = "regressed"
 )
 
