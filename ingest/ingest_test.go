@@ -455,3 +455,13 @@ func assertError(t *testing.T, res *http.Response, body string, status int, code
 		t.Errorf("response = %d %s, want %d %s", res.StatusCode, body, status, code)
 	}
 }
+
+func listIssues(t *testing.T, e *endpoint, projectID string) []issues.Issue {
+	t.Helper()
+
+	got, err := issues.List(t.Context(), e.Data, projectID)
+	if err != nil {
+		t.Fatalf("list Issues: %v", err)
+	}
+	return got
+}

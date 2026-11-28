@@ -74,6 +74,12 @@ func Record(ctx context.Context, data *store.DB, projectID string, receivedAt ti
 		return false, nil
 	}
 
+	group := grouping.Compute(event)
+	components, err := json.Marshal(group.Components)
+	if err != nil {
+		return false, fmt.Errorf("encode group components: %w", err)
+	}
+
 	// On conflict, RETURNING gives the id of the existing Issue.
 	var issueID string
 	err = tx.QueryRowContext(ctx, `
@@ -81,14 +87,16 @@ func Record(ctx context.Context, data *store.DB, projectID string, receivedAt ti
 		VALUES (?, ?, ?, ?, ?, ?, 1)
 		ON CONFLICT (project_id, group_key) DO UPDATE SET event_count = event_count + 1
 		RETURNING id`,
-		store.NewID(), projectID, grouping.Key(event), StatusOpen, title(event), culprit(event),
+		store.NewID(), projectID, group.Key, StatusOpen, title(event), culprit(event),
 	).Scan(&issueID)
 	if err != nil {
 		return false, fmt.Errorf("upsert Issue: %w", err)
 	}
 
-	_, err = tx.ExecContext(ctx, "INSERT INTO events (id, project_id, event_id, issue_id, received_at, payload) VALUES (?, ?, ?, ?, ?, ?)",
-		store.NewID(), projectID, event.EventID, issueID, receivedAt.UTC().Format(time.RFC3339Nano), payload)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO events (id, project_id, event_id, issue_id, received_at, grouping_version, group_components, payload)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		store.NewID(), projectID, event.EventID, issueID, receivedAt.UTC().Format(time.RFC3339Nano), group.Version, string(components), payload)
 	if err != nil {
 		return false, fmt.Errorf("insert Event: %w", err)
 	}
