@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/joansgarcia/trace/apis"
+	"github.com/joansgarcia/trace/ingest"
 )
 
 const (
@@ -58,6 +59,12 @@ func newServe() *cobra.Command {
 			if config.TrustedProxies, err = parseProxies(trustedProxies); err != nil {
 				return err
 			}
+			if config.IngestRateLimit <= 0 {
+				return fmt.Errorf("invalid ingest rate limit %v: use a number of Events/s above 0", config.IngestRateLimit)
+			}
+			if config.IngestMaxPending <= 0 {
+				return fmt.Errorf("invalid ingest max pending %d: use a number of Events above 0", config.IngestMaxPending)
+			}
 			config.Logger = logger
 			logger.Info("starting",
 				"version", cmd.Root().Version,
@@ -67,6 +74,8 @@ func newServe() *cobra.Command {
 				"log_level", logLevel,
 				"shutdown_timeout", config.ShutdownTimeout.String(),
 				"trusted_proxies", config.TrustedProxies,
+				"ingest_rate_limit", config.IngestRateLimit,
+				"ingest_max_pending", config.IngestMaxPending,
 			)
 
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
@@ -82,6 +91,8 @@ func newServe() *cobra.Command {
 	flags.StringVar(&logFormat, "log-format", defaultLogFormat, "log format: "+listLogFormats())
 	flags.StringVar(&logLevel, "log-level", defaultLogLevel, "minimum log level: "+listLogLevels())
 	flags.DurationVar(&config.ShutdownTimeout, "shutdown-timeout", defaultShutdownTimeout, "maximum time to wait for a graceful shutdown")
+	flags.Float64Var(&config.IngestRateLimit, "ingest-rate-limit", ingest.DefaultRateLimit, "default rate limit of each Project, in Events/s; the burst is 5 s of it, at least 100 Events")
+	flags.IntVar(&config.IngestMaxPending, "ingest-max-pending", ingest.DefaultMaxPending, "largest backlog of accepted Events not yet processed; beyond it, ingestion answers 503")
 	flags.StringSliceVar(&trustedProxies, "trusted-proxies", nil, "comma-separated CIDRs of the reverse proxies whose X-Forwarded-For and X-Forwarded-Proto headers are trusted")
 
 	return serve

@@ -22,6 +22,8 @@ The reference capacity is ~500 Events/s with an ingest p99 under 50 ms on 2 vCPU
 | `--log-level` | `TRACE_LOG_LEVEL` | `info` | minimum log level: `debug`, `info`, `warn` or `error` |
 | `--shutdown-timeout` | `TRACE_SHUTDOWN_TIMEOUT` | `10s` | maximum time to wait for a graceful shutdown |
 | `--trusted-proxies` | `TRACE_TRUSTED_PROXIES` | none | comma-separated CIDRs of the reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` headers are trusted |
+| `--ingest-rate-limit` | `TRACE_INGEST_RATE_LIMIT` | `200` | default rate limit of each Project, in Events/s, with a burst of 5 s of it (at least 100 Events); a Project may override it |
+| `--ingest-max-pending` | `TRACE_INGEST_MAX_PENDING` | `100000` | largest backlog of accepted Events not yet processed; beyond it, ingestion answers `503 ingest_overloaded` |
 
 `trace serve --help` lists the same flags. Logs go to stdout.
 

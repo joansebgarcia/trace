@@ -55,6 +55,7 @@ const (
 	codeTooLarge         = "payload_too_large"
 	codeUnsupportedMedia = "unsupported_media_type"
 	codeMethod           = "method_not_allowed"
+	codeRateLimited      = "rate_limited"
 	codeOverloaded       = "ingest_overloaded"
 	codeShuttingDown     = "shutting_down"
 	codeInternal         = "internal_error"
@@ -92,8 +93,9 @@ type Config struct {
 // Handler serves the ingest endpoint. Close stops it once the server no
 // longer serves it.
 type Handler struct {
-	config Config
-	logger *slog.Logger
+	config  Config
+	logger  *slog.Logger
+	limiter *limiter
 }
 
 // message is one accepted Event as it waits in the queue.
@@ -115,7 +117,13 @@ func NewHandler(config Config) *Handler {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
-	return &Handler{config: config, logger: logger}
+	if config.RateLimit == 0 {
+		config.RateLimit = DefaultRateLimit
+	}
+	if config.MaxPending == 0 {
+		config.MaxPending = DefaultMaxPending
+	}
+	return &Handler{config: config, logger: logger, limiter: newLimiter()}
 }
 
 // ServeHTTP answers the CORS preflight of the endpoint and accepts batches
@@ -140,8 +148,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Close() {}
 
 // accept runs a batch through the steps of the endpoint, in order: the
-// Ingest Key, the media type, the body limits, the validation, the
-// Redaction, and the commit to the queue. Nothing unredacted reaches the
+// Ingest Key, the media type, a first check of the rate limit, the body
+// limits, the validation, the Redaction, the rate limit of the batch, and
+// the commit to the queue. Nothing unredacted reaches the
 // queue, and nothing of the client but the Events: not its IP.
 func (h *Handler) accept(w http.ResponseWriter, r *http.Request) {
 	key, conflict := readKey(r)
@@ -166,6 +175,16 @@ func (h *Handler) accept(w http.ResponseWriter, r *http.Request) {
 
 	if !isSupported(r) {
 		reject(w, http.StatusUnsupportedMediaType, apiError{Code: codeUnsupportedMedia, Message: "the body must be application/json or text/plain, optionally gzip"})
+		return
+	}
+
+	rate := h.config.RateLimit
+	if project.RateLimit > 0 {
+		rate = project.RateLimit
+	}
+	// A Project without a token left is refused before its body is read.
+	if ok, wait := h.limiter.check(project.ID, rate, 1, time.Now()); !ok {
+		h.rateLimited(w, wait, true)
 		return
 	}
 
@@ -194,13 +213,23 @@ func (h *Handler) accept(w http.ResponseWriter, r *http.Request) {
 		events[i] = redaction.Apply(events[i], project.RedactionTerms)
 	}
 
+	// Duplicates count too: the rate limit counts the Events sent.
+	if ok, wait := h.limiter.take(project.ID, rate, len(events), time.Now()); !ok {
+		h.rateLimited(w, wait, false)
+		return
+	}
+
 	payloads, err := encode(project.ID, time.Now().UTC(), events)
 	if err != nil {
 		h.logger.Error("encode Events failed", "project_id", project.ID, "err", err)
 		writeError(w, http.StatusInternalServerError, apiError{Code: codeInternal, Message: "the server failed to accept the Events"})
 		return
 	}
-	switch err := h.config.Queue.Enqueue(r.Context(), payloads); {
+	err = h.config.Queue.Enqueue(r.Context(), payloads)
+	if err != nil {
+		h.limiter.give(project.ID, len(events))
+	}
+	switch {
 	case err == nil:
 		writeJSON(w, http.StatusAccepted, map[string]int{"accepted": len(events)})
 	case errors.Is(err, queue.ErrOverloaded):
@@ -213,6 +242,18 @@ func (h *Handler) accept(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("enqueue Events failed", "project_id", project.ID, "err", err)
 		writeError(w, http.StatusInternalServerError, apiError{Code: codeInternal, Message: "the server failed to accept the Events"})
 	}
+}
+
+// rateLimited answers 429 with the wait, in whole seconds, until the batch
+// fits; unread means the body was not read.
+func (h *Handler) rateLimited(w http.ResponseWriter, wait time.Duration, unread bool) {
+	w.Header().Set("Retry-After", strconv.Itoa(retrySeconds(wait)))
+	e := apiError{Code: codeRateLimited, Message: "the Project sent more Events than its rate limit allows"}
+	if unread {
+		reject(w, http.StatusTooManyRequests, e)
+		return
+	}
+	writeError(w, http.StatusTooManyRequests, e)
 }
 
 // NewProcess returns the function that processes a queued Event into its
