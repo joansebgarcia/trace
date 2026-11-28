@@ -10,7 +10,7 @@ This guide takes an Operator from nothing to a Trace instance in production. Tra
 
 ### Capacity
 
-The reference capacity is ~500 Events/s with an ingest p99 under 50 ms on 2 vCPU / 4 GB. The [benchmark](benchmark.md) has so far measured only the queue acceptance path, not the full ingest handler: 500 Events/s with a p99 of 14.68 ms, on a 16 GB macOS host with the server at `GOMAXPROCS=2`. A run on a real 2 vCPU / 4 GB machine is still pending.
+The reference capacity is ~500 Events/s with an ingest p99 under 50 ms on 2 vCPU / 4 GB. The [benchmark](benchmark.md) measures the full ingest endpoint: 500 Events/s with a p99 of 10.4 ms, on a 16 GB macOS host with the server at `GOMAXPROCS=2`. A run on a real 2 vCPU / 4 GB machine is still pending.
 
 ## Settings
 

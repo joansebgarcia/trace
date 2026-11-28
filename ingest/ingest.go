@@ -20,7 +20,6 @@ import (
 	"github.com/joansgarcia/trace/issues"
 	"github.com/joansgarcia/trace/projects"
 	"github.com/joansgarcia/trace/queue"
-	"github.com/joansgarcia/trace/redaction"
 	"github.com/joansgarcia/trace/store"
 )
 
@@ -266,7 +265,7 @@ func (h *Handler) accept(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for i := range events {
-		events[i] = redaction.Apply(events[i], project.RedactionTerms)
+		events[i] = Redact(events[i], project.RedactionTerms)
 	}
 
 	// Duplicates count too: the rate limit counts the Events sent.

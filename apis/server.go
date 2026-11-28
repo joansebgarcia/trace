@@ -134,7 +134,7 @@ func (s *Server) Start() error {
 		ui = web.FS
 	}
 	s.server = &http.Server{
-		Handler:           NewRouter(s.logger, s.config.TrustedProxies, s.ping, &s.stopping, q, s.ingest, ui),
+		Handler:           NewRouter(s.logger, s.config.TrustedProxies, s.ping, &s.stopping, s.ingest, ui),
 		ReadHeaderTimeout: readHeaderTimeout,
 	}
 	s.logger.Info("http server listening", "addr", s.Addr())
